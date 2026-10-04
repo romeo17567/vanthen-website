@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1500"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ecece7"/><stop offset="1" stop-color="#cfcfc9"/></linearGradient><linearGradient id="blk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#232323"/><stop offset=".5" stop-color="#0d0d0d"/><stop offset="1" stop-color="#1b1b1b"/></linearGradient><filter id="sh"><feDropShadow dx="0" dy="24" stdDeviation="22" flood-opacity=".25"/></filter></defs><rect width="1200" height="1500" fill="url(#bg)"/>
+<ellipse cx="600" cy="1280" rx="320" ry="55" fill="#000" opacity=".10"/>
+<g filter="url(#sh)" fill="url(#blk)" stroke="#303030" stroke-width="4">
+<path d="M420 360c44-94 316-94 360 0l125 110 120 385-185 65-55-188-26 534H441l-26-534-55 188-185-65 120-385z"/>
+<path d="M455 355c16-170 274-170 290 0-48 90-242 90-290 0z"/>
+<path d="M470 1110h260l35 156H435z"/>
+</g>
+<text x="600" y="700" text-anchor="middle" fill="#dcdcd6" font-family="Arial" font-size="42" font-weight="700" letter-spacing="12">VANTHEN</text>
+<text x="600" y="755" text-anchor="middle" fill="#8d8d88" font-family="Arial" font-size="18" letter-spacing="6">SIGNAL / 001</text></svg>
