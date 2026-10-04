@@ -1,10 +1,10 @@
 const PRODUCTS=[
-{id:1,name:"SIGNAL HEAVY HOODIE",type:"HOODIE",category:"hoodies",price:89,size:["S","M","L","XL"],desc:"460 GSM Heavyweight Cotton, dropped shoulders und eine feste oversized Silhouette.",badge:"LIMITED",image:"assets/product-hoodie.svg"},
-{id:2,name:"V/01 OVERSIZED TEE",type:"T-SHIRT",category:"tees",price:49,size:["S","M","L","XL"],desc:"Schwerer Jersey, weiter Body und cleanes V/01 Front-Branding.",badge:"NEW",image:"assets/product-tee.svg"},
-{id:3,name:"NOISE ZIP HOODIE",type:"ZIP HOODIE",category:"hoodies",price:99,size:["S","M","L","XL"],desc:"Doppellagige Kapuze, Metall-Zip und tonales vertikales Branding.",badge:"DROP 001",image:"assets/product-zip.svg"},
-{id:4,name:"UNREADABLE TEE",type:"T-SHIRT",category:"tees",price:54,size:["S","M","L","XL"],desc:"Boxy Fit mit großem Backprint und minimaler Frontsignatur.",badge:"BESTSELLER",image:"assets/product-unreadable.svg"},
-{id:5,name:"VANTHEN CORE CAP",type:"CAP",category:"accessories",price:39,size:["OS"],desc:"Strukturierte Six-Panel Cap mit tonaler Stickerei und Metallverschluss.",badge:"CORE",image:"assets/product-cap.svg"},
-{id:6,name:"SIGNAL BEANIE",type:"BEANIE",category:"accessories",price:34,size:["OS"],desc:"Schwerer Rippstrick mit gewebtem VANTHEN Label.",badge:"LIMITED",image:"assets/product-beanie.svg"}];
+{id:1,name:"SIGNAL HEAVY HOODIE",type:"HOODIE",category:"hoodies",price:89,size:["S","M","L","XL"],desc:"460 GSM Heavyweight Cotton, dropped shoulders und eine feste oversized Silhouette.",badge:"LIMITED",image:"assets/vanthen-hoodie.svg"},
+{id:2,name:"V/01 OVERSIZED TEE",type:"T-SHIRT",category:"tees",price:49,size:["S","M","L","XL"],desc:"Schwerer Jersey, weiter Body und cleanes V/01 Front-Branding.",badge:"NEW",image:"assets/vanthen-tshirt.svg"},
+{id:3,name:"NOISE ZIP HOODIE",type:"ZIP HOODIE",category:"hoodies",price:99,size:["S","M","L","XL"],desc:"Doppellagige Kapuze, Metall-Zip und tonales vertikales Branding.",badge:"DROP 001",image:"assets/vanthen-hoodie.svg"},
+{id:4,name:"UNREADABLE TEE",type:"T-SHIRT",category:"tees",price:54,size:["S","M","L","XL"],desc:"Boxy Fit mit großem Backprint und minimaler Frontsignatur.",badge:"BESTSELLER",image:"assets/vanthen-tshirt.svg"},
+{id:5,name:"VANTHEN CORE CAP",type:"CAP",category:"accessories",price:39,size:["OS"],desc:"Strukturierte Six-Panel Cap mit tonaler Stickerei und Metallverschluss.",badge:"CORE",image:"assets/vanthen-cap.svg"},
+{id:6,name:"SIGNAL BEANIE",type:"BEANIE",category:"accessories",price:34,size:["OS"],desc:"Schwerer Rippstrick mit gewebtem VANTHEN Label.",badge:"LIMITED",image:"assets/vanthen-beanie.svg"}];
 
 let cart=JSON.parse(localStorage.getItem("vanthen-cart")||"[]"),activeProduct=null,activeSize=null;
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),money=n=>n.toLocaleString("de-DE",{style:"currency",currency:"EUR"});
