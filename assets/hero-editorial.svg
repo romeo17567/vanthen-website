@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1500"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ecece7"/><stop offset="1" stop-color="#cfcfc9"/></linearGradient><linearGradient id="blk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#232323"/><stop offset=".5" stop-color="#0d0d0d"/><stop offset="1" stop-color="#1b1b1b"/></linearGradient><filter id="sh"><feDropShadow dx="0" dy="24" stdDeviation="22" flood-opacity=".25"/></filter></defs><rect width="1200" height="1500" fill="url(#bg)"/>
+<rect width="1200" height="1500" fill="#111"/>
+<path d="M0 0h1200v1500H0z" fill="url(#bg)" opacity=".08"/>
+<circle cx="935" cy="255" r="420" fill="#fff" opacity=".035"/>
+<path d="M180 1280L720 200h280L460 1280z" fill="#fff" opacity=".035"/>
+<g transform="translate(135 180) scale(.78)" filter="url(#sh)" fill="#0b0b0b" stroke="#383838" stroke-width="5">
+<path d="M420 360c44-94 316-94 360 0l125 110 120 385-185 65-55-188-26 534H441l-26-534-55 188-185-65 120-385z"/>
+<path d="M455 355c16-170 274-170 290 0-48 90-242 90-290 0z"/>
+</g>
+<text x="845" y="1160" fill="#f0f0eb" font-family="Arial" font-size="86" font-weight="700" transform="rotate(-90 845 1160)">VANTHEN</text>
+<text x="905" y="1160" fill="#858580" font-family="Arial" font-size="18" letter-spacing="6" transform="rotate(-90 905 1160)">DROP 001 / THE FIRST SIGNAL</text></svg>
