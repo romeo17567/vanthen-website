@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1500"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ecece7"/><stop offset="1" stop-color="#cfcfc9"/></linearGradient><linearGradient id="blk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#232323"/><stop offset=".5" stop-color="#0d0d0d"/><stop offset="1" stop-color="#1b1b1b"/></linearGradient><filter id="sh"><feDropShadow dx="0" dy="24" stdDeviation="22" flood-opacity=".25"/></filter></defs><rect width="1200" height="1500" fill="url(#bg)"/>
+<ellipse cx="600" cy="1040" rx="360" ry="48" fill="#000" opacity=".10"/>
+<g filter="url(#sh)" fill="url(#blk)" stroke="#303030" stroke-width="4"><path d="M310 720c0-270 580-270 580 0v145c-180 45-400 45-580 0z"/><path d="M565 850c135 0 280 42 355 95-105 68-270 75-430 35z"/></g>
+<text x="600" y="730" text-anchor="middle" fill="#eeeeea" font-family="Arial" font-size="68" font-weight="700">V</text>
+<text x="600" y="795" text-anchor="middle" fill="#9a9a95" font-family="Arial" font-size="16" letter-spacing="6">VANTHEN</text></svg>
