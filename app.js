@@ -1,10 +1,11 @@
 const PRODUCTS=[
-{id:1,name:"SIGNAL HEAVY HOODIE",type:"HOODIE",category:"hoodies",price:89,size:["S","M","L","XL"],desc:"460 GSM Heavyweight Cotton, dropped shoulders und eine feste oversized Silhouette.",badge:"LIMITED",image:"assets/vanthen-hoodie.svg"},
-{id:2,name:"V/01 OVERSIZED TEE",type:"T-SHIRT",category:"tees",price:49,size:["S","M","L","XL"],desc:"Schwerer Jersey, weiter Body und cleanes V/01 Front-Branding.",badge:"NEW",image:"assets/vanthen-tshirt.svg"},
-{id:3,name:"NOISE ZIP HOODIE",type:"ZIP HOODIE",category:"hoodies",price:99,size:["S","M","L","XL"],desc:"Doppellagige Kapuze, Metall-Zip und tonales vertikales Branding.",badge:"DROP 001",image:"assets/vanthen-hoodie.svg"},
-{id:4,name:"UNREADABLE TEE",type:"T-SHIRT",category:"tees",price:54,size:["S","M","L","XL"],desc:"Boxy Fit mit großem Backprint und minimaler Frontsignatur.",badge:"BESTSELLER",image:"assets/vanthen-tshirt.svg"},
-{id:5,name:"VANTHEN CORE CAP",type:"CAP",category:"accessories",price:39,size:["OS"],desc:"Strukturierte Six-Panel Cap mit tonaler Stickerei und Metallverschluss.",badge:"CORE",image:"assets/vanthen-cap.svg"},
-{id:6,name:"SIGNAL BEANIE",type:"BEANIE",category:"accessories",price:34,size:["OS"],desc:"Schwerer Rippstrick mit gewebtem VANTHEN Label.",badge:"LIMITED",image:"assets/vanthen-beanie.svg"}];
+{id:1,name:"SCHRITT FÜR SCHRITT CREWNECK",type:"CREWNECK",category:"hoodies",price:89,size:["S","M","L","XL"],desc:"Premium Crewneck mit kleinem Frontlogo und Rückenprint „SCHRITT FÜR SCHRITT.“. Farben: Black, Navy, Wine Red, Gray und Beige.",badge:"NEW",image:"assets/products/crewneck-colors.webp"},
+{id:2,name:"VERTRAU DEM WEG TEE",type:"T-SHIRT",category:"tees",price:49,size:["S","M","L","XL"],desc:"Cleanes VANTHEN T-Shirt mit Frontlogo und Rückenprint „VERTRAU DEM WEG.“. Erhältlich in Black, Navy Blue, Wine Red, Gray und Beige.",badge:"NEW",image:"assets/products/tee-vertrau.webp"},
+{id:3,name:"ALLES HAT SEINE ZEIT TEE",type:"T-SHIRT",category:"tees",price:54,size:["S","M","L","XL"],desc:"VANTHEN T-Shirt mit dezenter Front und Statement-Rückenprint „ALLES HAT SEINE ZEIT.“. Farben: Black, Navy, Wine Red, Gray und Beige.",badge:"BESTSELLER",image:"assets/products/tee-zeit.webp"},
+{id:4,name:"JEDER TAG ZÄHLT OVERSIZED TEE",type:"OVERSIZED T-SHIRT",category:"tees",price:59,size:["S","M","L","XL"],desc:"Boxy Oversized Fit mit dropped shoulders und großem Rückenprint „JEDER TAG ZÄHLT.“. In Black, Navy, Wine Red, Gray und Beige.",badge:"OVERSIZED",image:"assets/products/tee-oversized.webp"},
+{id:5,name:"LEBE DEINEN WEG CAP",type:"CAP",category:"accessories",price:39,size:["OS"],desc:"VANTHEN Cap mit gesticktem Frontlogo und „LEBE DEINEN WEG.“ auf der Rückseite. Farben: Black, Navy, Wine Red, Gray und Beige.",badge:"CORE",image:"assets/products/cap-colors.webp"},
+{id:6,name:"BLEIB ECHT BEANIE",type:"BEANIE",category:"accessories",price:34,size:["OS"],desc:"Gerippte Beanie mit VANTHEN Patch „BLEIB ECHT.“. Farben: Black, Navy, Wine Red, Gray und Beige.",badge:"LIMITED",image:"assets/products/beanie-colors.webp"}
+];
 
 let cart=JSON.parse(localStorage.getItem("vanthen-cart")||"[]"),activeProduct=null,activeSize=null;
 const $=s=>document.querySelector(s),$$=s=>document.querySelectorAll(s),money=n=>n.toLocaleString("de-DE",{style:"currency",currency:"EUR"});
@@ -13,7 +14,7 @@ function renderProducts(filter="all"){
  const grid=$("#productGrid");grid.innerHTML="";
  PRODUCTS.filter(p=>filter==="all"||p.category===filter).forEach(p=>{
    const el=document.createElement("article");el.className="product-card";
-   el.innerHTML=`<div class="product-image"><img src="${p.image}" alt="${p.name}" loading="lazy"><span class="product-badge">${p.badge}</span><button class="quick-add">AUSWÄHLEN</button></div><div class="product-info"><div><h3>${p.name}</h3><p>${p.type}</p><div class="color-dots"><i></i><i></i></div></div><strong>${money(p.price)}</strong></div>`;
+   el.innerHTML=`<div class="product-image"><img src="${p.image}" alt="${p.name}" loading="lazy"><span class="product-badge">${p.badge}</span><button class="quick-add">AUSWÄHLEN</button></div><div class="product-info"><div><h3>${p.name}</h3><p>${p.type}</p><div class="color-dots"><i style="background:#111" title="Black"></i><i style="background:#14213d" title="Navy"></i><i style="background:#7b1e2b" title="Wine Red"></i><i style="background:#777" title="Gray"></i><i style="background:#d7c5aa" title="Beige"></i></div></div><strong>${money(p.price)}</strong></div>`;
    el.onclick=e=>{if(e.target.classList.contains("quick-add"))e.stopPropagation();openProduct(p)};grid.appendChild(el)
  })
 }
