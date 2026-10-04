@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1500"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ecece7"/><stop offset="1" stop-color="#cfcfc9"/></linearGradient><linearGradient id="blk" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#232323"/><stop offset=".5" stop-color="#0d0d0d"/><stop offset="1" stop-color="#1b1b1b"/></linearGradient><filter id="sh"><feDropShadow dx="0" dy="24" stdDeviation="22" flood-opacity=".25"/></filter></defs><rect width="1200" height="1500" fill="url(#bg)"/>
+<ellipse cx="600" cy="1260" rx="300" ry="50" fill="#000" opacity=".10"/>
+<g filter="url(#sh)" fill="url(#blk)" stroke="#2f2f2f" stroke-width="4">
+<path d="M410 360l130-55c40 55 80 55 120 0l130 55 180 180-115 150-92-72 34 640H423l34-640-92 72-115-150z"/>
+</g>
+<text x="600" y="700" text-anchor="middle" fill="#efefe9" font-family="Arial" font-size="70" font-weight="700">V/01</text>
+<text x="600" y="760" text-anchor="middle" fill="#8d8d88" font-family="Arial" font-size="16" letter-spacing="8">NOT MADE TO BELONG</text></svg>
