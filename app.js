@@ -1,10 +1,10 @@
 const PRODUCTS=[
-{id:1,name:"SCHRITT FÜR SCHRITT CREWNECK",type:"CREWNECK",category:"hoodies",price:89,size:["S","M","L","XL"],desc:"Premium Crewneck mit kleinem Frontlogo und Rückenprint „SCHRITT FÜR SCHRITT.“. Farben: Black, Navy, Wine Red, Gray und Beige.",badge:"NEW",image:"assets/products/crewneck-colors.webp"},
+{id:1,name:"SCHRITT FÜR SCHRITT CREWNECK",type:"CREWNECK",category:"hoodies",price:89,size:["S","M","L","XL"],desc:"Premium Crewneck mit kleinem Frontlogo und Rückenprint „SCHRITT FÜR SCHRITT.“. Farben: Black, Navy, Wine Red, Gray und Beige.",badge:"NEW",image:"assets/products/crewneck-colors.png"},
 {id:2,name:"VERTRAU DEM WEG TEE",type:"T-SHIRT",category:"tees",price:49,size:["S","M","L","XL"],desc:"Cleanes VANTHEN T-Shirt mit Frontlogo und Rückenprint „VERTRAU DEM WEG.“. Erhältlich in Black, Navy Blue, Wine Red, Gray und Beige.",badge:"NEW",image:"assets/products/tee-vertrau.webp"},
 {id:3,name:"ALLES HAT SEINE ZEIT TEE",type:"T-SHIRT",category:"tees",price:54,size:["S","M","L","XL"],desc:"VANTHEN T-Shirt mit dezenter Front und Statement-Rückenprint „ALLES HAT SEINE ZEIT.“. Farben: Black, Navy, Wine Red, Gray und Beige.",badge:"BESTSELLER",image:"assets/products/tee-zeit.webp"},
 {id:4,name:"JEDER TAG ZÄHLT OVERSIZED TEE",type:"OVERSIZED T-SHIRT",category:"tees",price:59,size:["S","M","L","XL"],desc:"Boxy Oversized Fit mit dropped shoulders und großem Rückenprint „JEDER TAG ZÄHLT.“. In Black, Navy, Wine Red, Gray und Beige.",badge:"OVERSIZED",image:"assets/products/tee-oversized.webp"},
 {id:5,name:"LEBE DEINEN WEG CAP",type:"CAP",category:"accessories",price:39,size:["OS"],desc:"VANTHEN Cap mit gesticktem Frontlogo und „LEBE DEINEN WEG.“ auf der Rückseite. Farben: Black, Navy, Wine Red, Gray und Beige.",badge:"CORE",image:"assets/products/cap-colors.webp"},
-{id:6,name:"BLEIB ECHT BEANIE",type:"BEANIE",category:"accessories",price:34,size:["OS"],desc:"Gerippte Beanie mit VANTHEN Patch „BLEIB ECHT.“. Farben: Black, Navy, Wine Red, Gray und Beige.",badge:"LIMITED",image:"assets/products/beanie-colors.webp"}
+{id:6,name:"BLEIB ECHT BEANIE",type:"BEANIE",category:"accessories",price:34,size:["OS"],desc:"Gerippte Beanie mit VANTHEN Patch „BLEIB ECHT.“. Farben: Black, Navy, Wine Red, Gray und Beige.",badge:"LIMITED",image:"assets/products/beanie-colors.png"}
 ];
 
 let cart=JSON.parse(localStorage.getItem("vanthen-cart")||"[]"),activeProduct=null,activeSize=null;
