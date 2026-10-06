@@ -8,27 +8,33 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  EmbedBuilder
+  EmbedBuilder,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder
 } = require("discord.js");
 
 const TOKEN = process.env.BOT_TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
 const WEBSITE_URL = process.env.WEBSITE_URL || "https://romeo17567.github.io/vanthen-website/";
+const ENABLE_MEMBER_WELCOME = String(process.env.ENABLE_MEMBER_WELCOME || "false").toLowerCase() === "true";
+const DROP_CHECK_MINUTES = Math.max(5, Number(process.env.DROP_CHECK_MINUTES || 15));
 
 if (!TOKEN || !GUILD_ID) {
-  console.error("BOT_TOKEN oder GUILD_ID fehlt in der .env Datei.");
+  console.error("BOT_TOKEN oder GUILD_ID fehlt in der Umgebung.");
   process.exit(1);
 }
 
-const client = new Client({
-  intents: [GatewayIntentBits.Guilds]
-});
+const intents = [GatewayIntentBits.Guilds];
+if (ENABLE_MEMBER_WELCOME) intents.push(GatewayIntentBits.GuildMembers);
+
+const client = new Client({ intents });
 
 const COLORS = {
   black: 0x111111,
   white: 0xF2F2F2,
   navy: 0x14213D,
-  red: 0x7B1E2B
+  red: 0x7B1E2B,
+  green: 0x2E8B57
 };
 
 const NOTIFICATION_ROLES = [
@@ -36,6 +42,15 @@ const NOTIFICATION_ROLES = [
   { name: "📦 Restock Alerts", id: "role_restock_alerts" },
   { name: "📱 Social Alerts", id: "role_social_alerts" }
 ];
+
+const TICKET_TYPES = {
+  order: { label: "Bestellung", emoji: "📦", description: "Fragen zu einer Bestellung oder Bestellnummer" },
+  shipping: { label: "Versand", emoji: "🚚", description: "Lieferzeit, Tracking oder Versandstatus" },
+  return: { label: "Rückgabe", emoji: "↩️", description: "Rückgabe, Umtausch oder Reklamation" },
+  size: { label: "Größe / Passform", emoji: "📏", description: "Hilfe bei Größe und Passform" },
+  website: { label: "Website", emoji: "🌐", description: "Technische Probleme im VANTHEN Shop" },
+  other: { label: "Sonstiges", emoji: "💬", description: "Andere Fragen an das VANTHEN Team" }
+};
 
 function findTextChannel(guild, name) {
   return guild.channels.cache.find(
@@ -54,6 +69,7 @@ async function ensureRole(guild, name) {
     hoist: false,
     reason: "VANTHEN Community Bot notification role"
   });
+
   console.log(`+ Rolle erstellt: ${name}`);
   return role;
 }
@@ -61,7 +77,7 @@ async function ensureRole(guild, name) {
 async function ensurePanel(channel, marker, payload) {
   if (!channel) return;
 
-  const messages = await channel.messages.fetch({ limit: 30 }).catch(() => null);
+  const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
   const existing = messages?.find(m =>
     m.author.id === client.user.id &&
     (m.embeds?.[0]?.footer?.text === marker || m.content?.includes(marker))
@@ -113,22 +129,27 @@ async function setupPanels(guild) {
     .setColor(COLORS.black)
     .setTitle("VANTHEN SUPPORT")
     .setDescription(
-      "Du brauchst Hilfe bei einer Bestellung, Rückgabe, Größe oder der Website?\n\n" +
-      "Klicke auf **Ticket erstellen**. Dein Ticket ist nur für dich und das VANTHEN-Team sichtbar."
+      "Wähle unten aus, wobei du Hilfe brauchst. Danach wird automatisch ein **privater Support-Kanal** für dich erstellt.\n\n" +
+      "🔒 Nur du und das VANTHEN-Team können dein Ticket sehen."
     )
     .setFooter({ text: "VANTHEN_TICKET_PANEL" });
 
-  const ticketRow = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId("ticket_create")
-      .setLabel("Ticket erstellen")
-      .setEmoji("🎫")
-      .setStyle(ButtonStyle.Primary)
-  );
+  const ticketSelect = new StringSelectMenuBuilder()
+    .setCustomId("ticket_type")
+    .setPlaceholder("Wähle dein Anliegen")
+    .addOptions(
+      Object.entries(TICKET_TYPES).map(([value, item]) =>
+        new StringSelectMenuOptionBuilder()
+          .setLabel(item.label)
+          .setValue(value)
+          .setDescription(item.description.slice(0, 100))
+          .setEmoji(item.emoji)
+      )
+    );
 
   await ensurePanel(ticketChannel, "VANTHEN_TICKET_PANEL", {
     embeds: [ticketEmbed],
-    components: [ticketRow]
+    components: [new ActionRowBuilder().addComponents(ticketSelect)]
   });
 
   const websiteChannel = findTextChannel(guild, "website");
@@ -169,16 +190,20 @@ async function toggleRole(interaction, roleName) {
   }
 }
 
-async function createTicket(interaction) {
+async function createTicket(interaction, typeKey) {
   const guild = interaction.guild;
   const user = interaction.user;
+  const type = TICKET_TYPES[typeKey] || TICKET_TYPES.other;
+
+  await guild.channels.fetch();
+  await guild.roles.fetch();
 
   const supportCategory = guild.channels.cache.find(
     c => c.type === ChannelType.GuildCategory && c.name === "06 — SUPPORT"
   );
 
   const existing = guild.channels.cache.find(
-    c => c.topic === `VANTHEN_TICKET:${user.id}`
+    c => c.topic?.startsWith(`VANTHEN_TICKET:${user.id}`)
   );
 
   if (existing) {
@@ -204,7 +229,8 @@ async function createTicket(interaction) {
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
         PermissionFlagsBits.ReadMessageHistory,
-        PermissionFlagsBits.AttachFiles
+        PermissionFlagsBits.AttachFiles,
+        PermissionFlagsBits.EmbedLinks
       ]
     },
     {
@@ -213,7 +239,8 @@ async function createTicket(interaction) {
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
         PermissionFlagsBits.ReadMessageHistory,
-        PermissionFlagsBits.ManageChannels
+        PermissionFlagsBits.ManageChannels,
+        PermissionFlagsBits.ManageMessages
       ]
     }
   ];
@@ -224,32 +251,43 @@ async function createTicket(interaction) {
       allow: [
         PermissionFlagsBits.ViewChannel,
         PermissionFlagsBits.SendMessages,
-        PermissionFlagsBits.ReadMessageHistory
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.AttachFiles
       ]
     });
   }
 
-  const safeName = user.username.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 20) || "member";
+  const safeName = user.username.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 18) || "member";
+  const typeSlug = typeKey.replace(/[^a-z0-9-]/g, "").slice(0, 10);
 
   const channel = await guild.channels.create({
-    name: `ticket-${safeName}`,
+    name: `ticket-${typeSlug}-${safeName}`,
     type: ChannelType.GuildText,
     parent: supportCategory?.id,
-    topic: `VANTHEN_TICKET:${user.id}`,
+    topic: `VANTHEN_TICKET:${user.id}:${typeKey}`,
     permissionOverwrites: overwrites,
-    reason: `VANTHEN support ticket for ${user.tag}`
+    reason: `VANTHEN ${type.label} ticket for ${user.tag}`
   });
 
   const embed = new EmbedBuilder()
     .setColor(COLORS.navy)
-    .setTitle("VANTHEN SUPPORT TICKET")
+    .setTitle(`${type.emoji} ${type.label.toUpperCase()} — SUPPORT`)
     .setDescription(
-      `Hey ${user}, beschreibe bitte dein Anliegen so genau wie möglich.\n\n` +
-      "Bei Bestellungen kannst du deine Bestellnummer hier privat angeben.\n" +
-      "**Keine Zahlungsdaten oder Passwörter senden.**"
-    );
+      `Hey ${user}, dein Ticket wurde erstellt. Beschreibe bitte dein Anliegen so genau wie möglich.\n\n` +
+      "**Hilfreich sind:**\n" +
+      "• kurze Beschreibung des Problems\n" +
+      "• bei Bestellungen: Bestellnummer\n" +
+      "• bei Website-Problemen: Screenshot\n\n" +
+      "⚠️ **Keine Passwörter oder Zahlungsdaten senden.**"
+    )
+    .setFooter({ text: `VANTHEN • ${type.label}` });
 
-  const row = new ActionRowBuilder().addComponents(
+  const controls = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("ticket_claim")
+      .setLabel("Übernehmen")
+      .setEmoji("🙋")
+      .setStyle(ButtonStyle.Secondary),
     new ButtonBuilder()
       .setCustomId("ticket_close")
       .setLabel("Ticket schließen")
@@ -257,17 +295,34 @@ async function createTicket(interaction) {
       .setStyle(ButtonStyle.Danger)
   );
 
-  await channel.send({ content: `${user}`, embeds: [embed], components: [row] });
+  await channel.send({ content: `${user}`, embeds: [embed], components: [controls] });
 
   await interaction.reply({
-    content: `✅ Dein Ticket wurde erstellt: ${channel}`,
+    content: `✅ Dein **${type.label}**-Ticket wurde erstellt: ${channel}`,
     ephemeral: true
   });
 
   const log = findTextChannel(guild, "tickets-log");
   if (log) {
-    await log.send(`🎫 Ticket erstellt: ${channel} von **${user.tag}**`);
+    await log.send(`🎫 **${type.label}**-Ticket erstellt: ${channel} von **${user.tag}**`);
   }
+}
+
+async function claimTicket(interaction) {
+  const channel = interaction.channel;
+  if (!channel?.topic?.startsWith("VANTHEN_TICKET:")) {
+    return interaction.reply({ content: "Das ist kein VANTHEN Ticket.", ephemeral: true });
+  }
+
+  const allowedNames = ["👑 Founder", "🛠️ Admin", "🛡️ Moderator", "📦 Support"];
+  const member = await interaction.guild.members.fetch(interaction.user.id);
+  const allowed = member.roles.cache.some(role => allowedNames.includes(role.name));
+
+  if (!allowed) {
+    return interaction.reply({ content: "Nur das VANTHEN-Team kann Tickets übernehmen.", ephemeral: true });
+  }
+
+  await interaction.reply(`🙋 Ticket übernommen von **${interaction.user.tag}**.`);
 }
 
 async function closeTicket(interaction) {
@@ -288,39 +343,254 @@ async function closeTicket(interaction) {
   }, 5000);
 }
 
+function parseProductNames(jsText) {
+  const block = jsText.match(/const\s+PRODUCTS\s*=\s*\[([\s\S]*?)\];/);
+  if (!block) return [];
+
+  const names = [];
+  const re = /name:"([^"]+)"/g;
+  let match;
+  while ((match = re.exec(block[1])) !== null) {
+    names.push(match[1]);
+  }
+  return [...new Set(names)];
+}
+
+async function fetchWebsiteProducts() {
+  const appUrl = new URL("app.js", WEBSITE_URL).toString();
+  const response = await fetch(appUrl, {
+    headers: { "user-agent": "VANTHEN-Discord-Bot/1.0" },
+    cache: "no-store"
+  });
+
+  if (!response.ok) {
+    throw new Error(`Website app.js antwortet mit HTTP ${response.status}`);
+  }
+
+  return parseProductNames(await response.text());
+}
+
+async function ensureBotStateChannel(guild) {
+  await guild.channels.fetch();
+
+  let channel = guild.channels.cache.find(
+    c => c.name === "bot-state" && c.type === ChannelType.GuildText
+  );
+  if (channel) return channel;
+
+  const staffCategory = guild.channels.cache.find(
+    c => c.type === ChannelType.GuildCategory && c.name === "09 — STAFF"
+  );
+
+  const founder = guild.roles.cache.find(r => r.name === "👑 Founder");
+  const admin = guild.roles.cache.find(r => r.name === "🛠️ Admin");
+
+  const overwrites = [
+    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    {
+      id: client.user.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.ManageMessages
+      ]
+    }
+  ];
+
+  for (const role of [founder, admin].filter(Boolean)) {
+    overwrites.push({
+      id: role.id,
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory]
+    });
+  }
+
+  channel = await guild.channels.create({
+    name: "bot-state",
+    type: ChannelType.GuildText,
+    parent: staffCategory?.id,
+    permissionOverwrites: overwrites,
+    reason: "VANTHEN bot state storage"
+  });
+
+  return channel;
+}
+
+async function getProductState(guild) {
+  const channel = await ensureBotStateChannel(guild);
+  const messages = await channel.messages.fetch({ limit: 20 }).catch(() => null);
+  const stateMessage = messages?.find(
+    m => m.author.id === client.user.id && m.content.startsWith("VANTHEN_PRODUCT_STATE:")
+  );
+
+  if (!stateMessage) return { channel, message: null, products: [] };
+
+  try {
+    return {
+      channel,
+      message: stateMessage,
+      products: JSON.parse(stateMessage.content.replace("VANTHEN_PRODUCT_STATE:", ""))
+    };
+  } catch {
+    return { channel, message: stateMessage, products: [] };
+  }
+}
+
+async function saveProductState(state, products) {
+  const content = `VANTHEN_PRODUCT_STATE:${JSON.stringify(products)}`;
+
+  if (state.message) {
+    await state.message.edit(content);
+  } else {
+    state.message = await state.channel.send(content);
+  }
+  state.products = products;
+}
+
+async function checkForNewDrops(guild) {
+  try {
+    const current = await fetchWebsiteProducts();
+    if (!current.length) {
+      console.warn("Drop-Check: Keine Produkte in app.js erkannt.");
+      return;
+    }
+
+    const state = await getProductState(guild);
+
+    if (!state.products.length) {
+      await saveProductState(state, current);
+      console.log(`Drop-Check initialisiert: ${current.length} Produkte.`);
+      return;
+    }
+
+    const oldSet = new Set(state.products);
+    const additions = current.filter(name => !oldSet.has(name));
+
+    if (additions.length) {
+      const channel = findTextChannel(guild, "new-drops");
+      const role = guild.roles.cache.find(r => r.name === "🔔 Drop Alerts");
+
+      if (channel) {
+        const embed = new EmbedBuilder()
+          .setColor(COLORS.navy)
+          .setTitle("🔥 NEW VANTHEN DROP")
+          .setDescription(
+            additions.map(name => `**${name}**`).join("\n") +
+            "\n\nJetzt im VANTHEN Online Store."
+          )
+          .setURL(WEBSITE_URL)
+          .setFooter({ text: "NOT MADE TO BELONG." })
+          .setTimestamp();
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel("SHOP NOW")
+            .setStyle(ButtonStyle.Link)
+            .setURL(WEBSITE_URL)
+        );
+
+        await channel.send({
+          content: role ? `<@&${role.id}>` : "🔔 Neuer VANTHEN Drop",
+          embeds: [embed],
+          components: [row],
+          allowedMentions: role ? { roles: [role.id] } : undefined
+        });
+      }
+
+      console.log(`Drop-Check: ${additions.length} neues Produkt / neue Produkte erkannt.`);
+    }
+
+    const changed =
+      current.length !== state.products.length ||
+      current.some((name, index) => name !== state.products[index]);
+
+    if (changed) await saveProductState(state, current);
+  } catch (err) {
+    console.error("Drop-Check Fehler:", err.message || err);
+  }
+}
+
+async function sendWelcome(member) {
+  const channel = findTextChannel(member.guild, "welcome");
+  if (!channel) return;
+
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.navy)
+    .setTitle("WELCOME TO VANTHEN.")
+    .setDescription(
+      `Willkommen ${member} 🖤\n\n` +
+      "Du bist jetzt Teil der offiziellen **VANTHEN Community**.\n" +
+      "Lies zuerst die Regeln und wähle anschließend deine Benachrichtigungen in **#roles**.\n\n" +
+      "**NOT MADE TO BELONG.**"
+    )
+    .setThumbnail(member.user.displayAvatarURL({ size: 256 }))
+    .setFooter({ text: `Member #${member.guild.memberCount}` })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel("VANTHEN SHOP")
+      .setStyle(ButtonStyle.Link)
+      .setURL(WEBSITE_URL)
+  );
+
+  await channel.send({ embeds: [embed], components: [row] });
+}
+
 client.once("ready", async () => {
   try {
     console.log(`Angemeldet als ${client.user.tag}`);
     client.user.setActivity("NOT MADE TO BELONG.");
 
     const guild = await client.guilds.fetch(GUILD_ID);
+    await guild.roles.fetch();
+    await guild.channels.fetch();
+
     await setupPanels(guild);
+    await checkForNewDrops(guild);
+
+    setInterval(() => {
+      checkForNewDrops(guild).catch(err => console.error("Drop-Check Intervall:", err));
+    }, DROP_CHECK_MINUTES * 60 * 1000);
 
     console.log("\n✅ VANTHEN Community Bot ist online.");
-    console.log("Dieses Fenster offen lassen, damit Buttons und Tickets funktionieren.");
+    console.log(`Automatischer Drop-Check: alle ${DROP_CHECK_MINUTES} Minuten.`);
+    console.log(`Automatische Welcome-Nachrichten: ${ENABLE_MEMBER_WELCOME ? "AKTIV" : "VORBEREITET (noch deaktiviert)"}.`);
   } catch (err) {
     console.error("Startfehler:", err);
   }
 });
 
+client.on("guildMemberAdd", async member => {
+  if (!ENABLE_MEMBER_WELCOME || member.guild.id !== GUILD_ID) return;
+  await sendWelcome(member).catch(err => console.error("Welcome-Fehler:", err));
+});
+
 client.on("interactionCreate", async interaction => {
   try {
-    if (!interaction.isButton() || !interaction.guild) return;
+    if (!interaction.guild) return;
 
-    if (interaction.customId === "role_drop_alerts") {
-      return toggleRole(interaction, "🔔 Drop Alerts");
+    if (interaction.isButton()) {
+      if (interaction.customId === "role_drop_alerts") {
+        return toggleRole(interaction, "🔔 Drop Alerts");
+      }
+      if (interaction.customId === "role_restock_alerts") {
+        return toggleRole(interaction, "📦 Restock Alerts");
+      }
+      if (interaction.customId === "role_social_alerts") {
+        return toggleRole(interaction, "📱 Social Alerts");
+      }
+      if (interaction.customId === "ticket_claim") {
+        return claimTicket(interaction);
+      }
+      if (interaction.customId === "ticket_close") {
+        return closeTicket(interaction);
+      }
     }
-    if (interaction.customId === "role_restock_alerts") {
-      return toggleRole(interaction, "📦 Restock Alerts");
-    }
-    if (interaction.customId === "role_social_alerts") {
-      return toggleRole(interaction, "📱 Social Alerts");
-    }
-    if (interaction.customId === "ticket_create") {
-      return createTicket(interaction);
-    }
-    if (interaction.customId === "ticket_close") {
-      return closeTicket(interaction);
+
+    if (interaction.isStringSelectMenu() && interaction.customId === "ticket_type") {
+      const selected = interaction.values[0] || "other";
+      return createTicket(interaction, selected);
     }
   } catch (err) {
     console.error("Interaction-Fehler:", err);
