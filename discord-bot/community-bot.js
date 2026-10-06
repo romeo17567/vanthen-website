@@ -634,16 +634,44 @@ async function saveSocialState(state) {
   }
 }
 
-async function fetchInstagramPosts() {
-  if (!INSTAGRAM_ACCESS_TOKEN || !INSTAGRAM_USER_ID) return null;
+async function resolveInstagramUserId() {
+  if (INSTAGRAM_USER_ID) return INSTAGRAM_USER_ID;
+  if (!INSTAGRAM_ACCESS_TOKEN) return "";
 
-  const url = new URL(`${INSTAGRAM_API_BASE}/${INSTAGRAM_USER_ID}/media`);
-  url.searchParams.set("fields", "id,caption,media_type,permalink,timestamp,media_url,thumbnail_url");
-  url.searchParams.set("limit", "10");
-  url.searchParams.set("access_token", INSTAGRAM_ACCESS_TOKEN);
+  const url = new URL(`${INSTAGRAM_API_BASE}/me`);
+  url.searchParams.set("fields", "id,username");
 
   const response = await fetch(url, {
-    headers: { "user-agent": "VANTHEN-Discord-Bot/3.0" },
+    headers: {
+      "Authorization": `Bearer ${INSTAGRAM_ACCESS_TOKEN}`,
+      "user-agent": "VANTHEN-Discord-Bot/3.1"
+    },
+    cache: "no-store"
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.error) {
+    throw new Error(`Instagram /me: ${body?.error?.message || "HTTP " + response.status}`);
+  }
+
+  return String(body.id || "");
+}
+
+async function fetchInstagramPosts() {
+  if (!INSTAGRAM_ACCESS_TOKEN) return null;
+
+  const userId = await resolveInstagramUserId();
+  if (!userId) throw new Error("Instagram User ID konnte nicht automatisch ermittelt werden.");
+
+  const url = new URL(`${INSTAGRAM_API_BASE}/${userId}/media`);
+  url.searchParams.set("fields", "id,caption,media_type,permalink,timestamp,media_url,thumbnail_url");
+  url.searchParams.set("limit", "10");
+
+  const response = await fetch(url, {
+    headers: {
+      "Authorization": `Bearer ${INSTAGRAM_ACCESS_TOKEN}`,
+      "user-agent": "VANTHEN-Discord-Bot/3.1"
+    },
     cache: "no-store"
   });
 
@@ -1234,7 +1262,7 @@ client.once("ready", async () => {
     console.log("\n✅ VANTHEN Community Bot PRO ist online.");
     console.log(`Produkt-/Restock-Check: alle ${DROP_CHECK_MINUTES} Minuten.`);
     console.log(`Social Auto-Check: alle ${SOCIAL_CHECK_MINUTES} Minuten.`);
-    console.log(`Instagram Auto: ${INSTAGRAM_ACCESS_TOKEN && INSTAGRAM_USER_ID ? "BEREIT" : "WARTET AUF ZUGANGSDATEN"}.`);
+    console.log(`Instagram Auto: ${INSTAGRAM_ACCESS_TOKEN ? "BEREIT (User-ID automatisch)" : "WARTET AUF TOKEN"}.`);
     console.log(`TikTok Auto: ${TIKTOK_ACCESS_TOKEN ? "BEREIT" : "WARTET AUF ZUGANGSDATEN"}.`);
     console.log(`Automatische Welcome-Nachrichten: ${ENABLE_MEMBER_WELCOME ? "AKTIV" : "DEAKTIVIERT"}.`);
   } catch (err) {
