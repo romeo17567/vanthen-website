@@ -1,5 +1,6 @@
 require("dotenv").config();
 
+const crypto = require("crypto");
 const {
   Client,
   GatewayIntentBits,
@@ -10,13 +11,14 @@ const {
   ButtonStyle,
   EmbedBuilder,
   StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder
+  StringSelectMenuOptionBuilder,
+  SlashCommandBuilder
 } = require("discord.js");
 
 const TOKEN = process.env.BOT_TOKEN;
 const GUILD_ID = process.env.GUILD_ID;
 const WEBSITE_URL = process.env.WEBSITE_URL || "https://romeo17567.github.io/vanthen-website/";
-const ENABLE_MEMBER_WELCOME = String(process.env.ENABLE_MEMBER_WELCOME || "false").toLowerCase() === "true";
+const ENABLE_MEMBER_WELCOME = String(process.env.ENABLE_MEMBER_WELCOME || "true").toLowerCase() === "true";
 const DROP_CHECK_MINUTES = Math.max(5, Number(process.env.DROP_CHECK_MINUTES || 15));
 
 if (!TOKEN || !GUILD_ID) {
@@ -24,17 +26,18 @@ if (!TOKEN || !GUILD_ID) {
   process.exit(1);
 }
 
-const intents = [GatewayIntentBits.Guilds];
-if (ENABLE_MEMBER_WELCOME) intents.push(GatewayIntentBits.GuildMembers);
-
-const client = new Client({ intents });
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+});
 
 const COLORS = {
   black: 0x111111,
   white: 0xF2F2F2,
   navy: 0x14213D,
   red: 0x7B1E2B,
-  green: 0x2E8B57
+  green: 0x2E8B57,
+  gold: 0xD4AF37,
+  purple: 0x815AC0
 };
 
 const NOTIFICATION_ROLES = [
@@ -52,26 +55,54 @@ const TICKET_TYPES = {
   other: { label: "Sonstiges", emoji: "💬", description: "Andere Fragen an das VANTHEN Team" }
 };
 
+const scheduledGiveaways = new Map();
+
 function findTextChannel(guild, name) {
   return guild.channels.cache.find(
     c => c.name === name && [ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(c.type)
   );
 }
 
-async function ensureRole(guild, name) {
+function isStaff(member) {
+  const staffNames = ["👑 Founder", "🛠️ Admin", "🛡️ Moderator", "📦 Support"];
+  return member.permissions.has(PermissionFlagsBits.ManageGuild) ||
+    member.roles.cache.some(role => staffNames.includes(role.name));
+}
+
+async function ensureRole(guild, name, options = {}) {
   let role = guild.roles.cache.find(r => r.name === name);
   if (role) return role;
 
   role = await guild.roles.create({
     name,
-    color: COLORS.navy,
-    mentionable: false,
-    hoist: false,
-    reason: "VANTHEN Community Bot notification role"
+    color: options.color || COLORS.navy,
+    mentionable: options.mentionable || false,
+    hoist: options.hoist || false,
+    reason: "VANTHEN Community Bot"
   });
 
   console.log(`+ Rolle erstellt: ${name}`);
   return role;
+}
+
+async function ensureTextChannel(guild, name, categoryName, overwrites = []) {
+  let channel = findTextChannel(guild, name);
+  if (channel) return channel;
+
+  const category = guild.channels.cache.find(
+    c => c.type === ChannelType.GuildCategory && c.name === categoryName
+  );
+
+  channel = await guild.channels.create({
+    name,
+    type: ChannelType.GuildText,
+    parent: category?.id,
+    permissionOverwrites: overwrites,
+    reason: "VANTHEN Community Bot"
+  });
+
+  console.log(`+ Kanal erstellt: #${name}`);
+  return channel;
 }
 
 async function ensurePanel(channel, marker, payload) {
@@ -93,6 +124,40 @@ async function ensurePanel(channel, marker, payload) {
   console.log(`+ Panel erstellt: #${channel.name}`);
 }
 
+async function ensureProChannels(guild) {
+  const vip = guild.roles.cache.find(r => r.name === "⭐ VIP");
+  const founder = guild.roles.cache.find(r => r.name === "👑 Founder");
+  const admin = guild.roles.cache.find(r => r.name === "🛠️ Admin");
+  const moderator = guild.roles.cache.find(r => r.name === "🛡️ Moderator");
+
+  const vipOverwrites = [
+    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+    {
+      id: client.user.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory,
+        PermissionFlagsBits.ManageMessages
+      ]
+    }
+  ];
+
+  for (const role of [vip, founder, admin, moderator].filter(Boolean)) {
+    vipOverwrites.push({
+      id: role.id,
+      allow: [
+        PermissionFlagsBits.ViewChannel,
+        PermissionFlagsBits.SendMessages,
+        PermissionFlagsBits.ReadMessageHistory
+      ]
+    });
+  }
+
+  await ensureTextChannel(guild, "giveaways", "05 — COMMUNITY");
+  await ensureTextChannel(guild, "vip-lounge", "05 — COMMUNITY", vipOverwrites);
+}
+
 async function setupPanels(guild) {
   await guild.roles.fetch();
   await guild.channels.fetch();
@@ -100,6 +165,8 @@ async function setupPanels(guild) {
   for (const role of NOTIFICATION_ROLES) {
     await ensureRole(guild, role.name);
   }
+
+  await ensureProChannels(guild);
 
   const rolesChannel = findTextChannel(guild, "roles");
   const roleEmbed = new EmbedBuilder()
@@ -170,6 +237,18 @@ async function setupPanels(guild) {
     embeds: [websiteEmbed],
     components: [websiteRow]
   });
+
+  const vipChannel = findTextChannel(guild, "vip-lounge");
+  const vipEmbed = new EmbedBuilder()
+    .setColor(COLORS.gold)
+    .setTitle("⭐ VANTHEN VIP LOUNGE")
+    .setDescription(
+      "Exklusiver Bereich für VANTHEN VIPs.\n\n" +
+      "Hier können Previews, spezielle Aktionen, limitierte Codes und Community-Extras geteilt werden."
+    )
+    .setFooter({ text: "VANTHEN_VIP_PANEL" });
+
+  await ensurePanel(vipChannel, "VANTHEN_VIP_PANEL", { embeds: [vipEmbed] });
 }
 
 async function toggleRole(interaction, roleName) {
@@ -219,10 +298,7 @@ async function createTicket(interaction, typeKey) {
   const founderRole = guild.roles.cache.find(r => r.name === "👑 Founder");
 
   const overwrites = [
-    {
-      id: guild.roles.everyone.id,
-      deny: [PermissionFlagsBits.ViewChannel]
-    },
+    { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
     {
       id: user.id,
       allow: [
@@ -314,11 +390,8 @@ async function claimTicket(interaction) {
     return interaction.reply({ content: "Das ist kein VANTHEN Ticket.", ephemeral: true });
   }
 
-  const allowedNames = ["👑 Founder", "🛠️ Admin", "🛡️ Moderator", "📦 Support"];
   const member = await interaction.guild.members.fetch(interaction.user.id);
-  const allowed = member.roles.cache.some(role => allowedNames.includes(role.name));
-
-  if (!allowed) {
+  if (!isStaff(member)) {
     return interaction.reply({ content: "Nur das VANTHEN-Team kann Tickets übernehmen.", ephemeral: true });
   }
 
@@ -350,23 +423,18 @@ function parseProductNames(jsText) {
   const names = [];
   const re = /name:"([^"]+)"/g;
   let match;
-  while ((match = re.exec(block[1])) !== null) {
-    names.push(match[1]);
-  }
+  while ((match = re.exec(block[1])) !== null) names.push(match[1]);
   return [...new Set(names)];
 }
 
 async function fetchWebsiteProducts() {
-  const appUrl = new URL("app.js", WEBSITE_URL).toString();
+  const appUrl = new URL(`app.js?v=${Date.now()}`, WEBSITE_URL).toString();
   const response = await fetch(appUrl, {
-    headers: { "user-agent": "VANTHEN-Discord-Bot/1.0" },
+    headers: { "user-agent": "VANTHEN-Discord-Bot/2.0" },
     cache: "no-store"
   });
 
-  if (!response.ok) {
-    throw new Error(`Website app.js antwortet mit HTTP ${response.status}`);
-  }
-
+  if (!response.ok) throw new Error(`Website app.js antwortet mit HTTP ${response.status}`);
   return parseProductNames(await response.text());
 }
 
@@ -405,112 +473,128 @@ async function ensureBotStateChannel(guild) {
     });
   }
 
-  channel = await guild.channels.create({
+  return guild.channels.create({
     name: "bot-state",
     type: ChannelType.GuildText,
     parent: staffCategory?.id,
     permissionOverwrites: overwrites,
     reason: "VANTHEN bot state storage"
   });
-
-  return channel;
 }
 
 async function getProductState(guild) {
   const channel = await ensureBotStateChannel(guild);
-  const messages = await channel.messages.fetch({ limit: 20 }).catch(() => null);
+  const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
   const stateMessage = messages?.find(
     m => m.author.id === client.user.id && m.content.startsWith("VANTHEN_PRODUCT_STATE:")
   );
 
-  if (!stateMessage) return { channel, message: null, products: [] };
+  if (!stateMessage) return { channel, message: null, current: [], everSeen: [] };
 
   try {
+    const parsed = JSON.parse(stateMessage.content.replace("VANTHEN_PRODUCT_STATE:", ""));
+    if (Array.isArray(parsed)) {
+      return { channel, message: stateMessage, current: parsed, everSeen: parsed };
+    }
     return {
       channel,
       message: stateMessage,
-      products: JSON.parse(stateMessage.content.replace("VANTHEN_PRODUCT_STATE:", ""))
+      current: Array.isArray(parsed.current) ? parsed.current : [],
+      everSeen: Array.isArray(parsed.everSeen) ? parsed.everSeen : []
     };
   } catch {
-    return { channel, message: stateMessage, products: [] };
+    return { channel, message: stateMessage, current: [], everSeen: [] };
   }
 }
 
-async function saveProductState(state, products) {
-  const content = `VANTHEN_PRODUCT_STATE:${JSON.stringify(products)}`;
-
-  if (state.message) {
-    await state.message.edit(content);
-  } else {
-    state.message = await state.channel.send(content);
-  }
-  state.products = products;
+async function saveProductState(state, current, everSeen) {
+  const content = `VANTHEN_PRODUCT_STATE:${JSON.stringify({ current, everSeen })}`;
+  if (state.message) await state.message.edit(content);
+  else state.message = await state.channel.send(content);
+  state.current = current;
+  state.everSeen = everSeen;
 }
 
-async function checkForNewDrops(guild) {
+async function sendDropAnnouncement(guild, names, kind) {
+  const config = kind === "restock"
+    ? { channel: "restocks", role: "📦 Restock Alerts", title: "📦 VANTHEN RESTOCK", color: COLORS.green, text: "wieder verfügbar" }
+    : kind === "soldout"
+      ? { channel: "sold-out", role: null, title: "SOLD OUT", color: COLORS.red, text: "aktuell nicht verfügbar" }
+      : { channel: "new-drops", role: "🔔 Drop Alerts", title: "🔥 NEW VANTHEN DROP", color: COLORS.navy, text: "jetzt verfügbar" };
+
+  const channel = findTextChannel(guild, config.channel);
+  if (!channel || !names.length) return;
+
+  const role = config.role ? guild.roles.cache.find(r => r.name === config.role) : null;
+
+  const embed = new EmbedBuilder()
+    .setColor(config.color)
+    .setTitle(config.title)
+    .setDescription(
+      names.map(name => `**${name}**`).join("\n") +
+      `\n\n${config.text} im VANTHEN Online Store.`
+    )
+    .setURL(WEBSITE_URL)
+    .setFooter({ text: "NOT MADE TO BELONG." })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setLabel("SHOP NOW").setStyle(ButtonStyle.Link).setURL(WEBSITE_URL)
+  );
+
+  await channel.send({
+    content: role ? `<@&${role.id}>` : undefined,
+    embeds: [embed],
+    components: [row],
+    allowedMentions: role ? { roles: [role.id] } : undefined
+  });
+}
+
+async function checkForProductChanges(guild) {
   try {
     const current = await fetchWebsiteProducts();
     if (!current.length) {
-      console.warn("Drop-Check: Keine Produkte in app.js erkannt.");
+      console.warn("Produkt-Check: Keine Produkte in app.js erkannt.");
       return;
     }
 
     const state = await getProductState(guild);
 
-    if (!state.products.length) {
-      await saveProductState(state, current);
-      console.log(`Drop-Check initialisiert: ${current.length} Produkte.`);
+    if (!state.current.length) {
+      await saveProductState(state, current, [...new Set([...state.everSeen, ...current])]);
+      console.log(`Produkt-Check initialisiert: ${current.length} Produkte.`);
       return;
     }
 
-    const oldSet = new Set(state.products);
-    const additions = current.filter(name => !oldSet.has(name));
+    const oldCurrent = new Set(state.current);
+    const ever = new Set(state.everSeen);
+    const currentSet = new Set(current);
 
-    if (additions.length) {
-      const channel = findTextChannel(guild, "new-drops");
-      const role = guild.roles.cache.find(r => r.name === "🔔 Drop Alerts");
+    const added = current.filter(name => !oldCurrent.has(name));
+    const restocks = added.filter(name => ever.has(name));
+    const newDrops = added.filter(name => !ever.has(name));
+    const soldOut = state.current.filter(name => !currentSet.has(name));
 
-      if (channel) {
-        const embed = new EmbedBuilder()
-          .setColor(COLORS.navy)
-          .setTitle("🔥 NEW VANTHEN DROP")
-          .setDescription(
-            additions.map(name => `**${name}**`).join("\n") +
-            "\n\nJetzt im VANTHEN Online Store."
-          )
-          .setURL(WEBSITE_URL)
-          .setFooter({ text: "NOT MADE TO BELONG." })
-          .setTimestamp();
+    if (newDrops.length) await sendDropAnnouncement(guild, newDrops, "drop");
+    if (restocks.length) await sendDropAnnouncement(guild, restocks, "restock");
+    if (soldOut.length) await sendDropAnnouncement(guild, soldOut, "soldout");
 
-        const row = new ActionRowBuilder().addComponents(
-          new ButtonBuilder()
-            .setLabel("SHOP NOW")
-            .setStyle(ButtonStyle.Link)
-            .setURL(WEBSITE_URL)
-        );
-
-        await channel.send({
-          content: role ? `<@&${role.id}>` : "🔔 Neuer VANTHEN Drop",
-          embeds: [embed],
-          components: [row],
-          allowedMentions: role ? { roles: [role.id] } : undefined
-        });
-      }
-
-      console.log(`Drop-Check: ${additions.length} neues Produkt / neue Produkte erkannt.`);
+    const nextEver = [...new Set([...state.everSeen, ...current])];
+    if (
+      current.length !== state.current.length ||
+      current.some((name, index) => name !== state.current[index])
+    ) {
+      await saveProductState(state, current, nextEver);
     }
-
-    const changed =
-      current.length !== state.products.length ||
-      current.some((name, index) => name !== state.products[index]);
-
-    if (changed) await saveProductState(state, current);
   } catch (err) {
-    console.error("Drop-Check Fehler:", err.message || err);
+    console.error("Produkt-Check Fehler:", err.message || err);
   }
 }
 
 async function sendWelcome(member) {
+  const memberRole = member.guild.roles.cache.find(r => r.name === "👤 Member");
+  if (memberRole) await member.roles.add(memberRole).catch(() => null);
+
   const channel = findTextChannel(member.guild, "welcome");
   if (!channel) return;
 
@@ -528,13 +612,407 @@ async function sendWelcome(member) {
     .setTimestamp();
 
   const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setLabel("VANTHEN SHOP")
-      .setStyle(ButtonStyle.Link)
-      .setURL(WEBSITE_URL)
+    new ButtonBuilder().setLabel("VANTHEN SHOP").setStyle(ButtonStyle.Link).setURL(WEBSITE_URL)
   );
 
   await channel.send({ embeds: [embed], components: [row] });
+}
+
+function giveawayMarker(messageId) {
+  return `VANTHEN_GIVEAWAY:${messageId}:`;
+}
+
+async function saveGiveawayState(guild, state, stateMessage = null) {
+  const channel = await ensureBotStateChannel(guild);
+  const content = giveawayMarker(state.messageId) + JSON.stringify(state);
+
+  if (stateMessage) {
+    await stateMessage.edit(content);
+    return stateMessage;
+  }
+
+  const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+  const existing = messages?.find(m => m.content.startsWith(giveawayMarker(state.messageId)));
+  if (existing) {
+    await existing.edit(content);
+    return existing;
+  }
+
+  return channel.send(content);
+}
+
+async function loadGiveawayState(guild, messageId) {
+  const channel = await ensureBotStateChannel(guild);
+  const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+  const msg = messages?.find(m => m.content.startsWith(giveawayMarker(messageId)));
+  if (!msg) return null;
+
+  try {
+    return {
+      stateMessage: msg,
+      state: JSON.parse(msg.content.slice(giveawayMarker(messageId).length))
+    };
+  } catch {
+    return null;
+  }
+}
+
+function giveawayEmbed(state, ended = false) {
+  const endUnix = Math.floor(state.endsAt / 1000);
+  const entrants = state.entrants?.length || 0;
+
+  const embed = new EmbedBuilder()
+    .setColor(ended ? COLORS.red : COLORS.purple)
+    .setTitle(ended ? "🎉 GIVEAWAY BEENDET" : "🎉 VANTHEN GIVEAWAY")
+    .setDescription(
+      `**Gewinn:** ${state.prize}\n\n` +
+      `**Gewinner:** ${state.winnerCount}\n` +
+      `**Teilnehmer:** ${entrants}\n` +
+      (ended
+        ? "\nDas Giveaway ist beendet."
+        : `**Ende:** <t:${endUnix}:F> (<t:${endUnix}:R>)\n\nKlicke auf **Teilnehmen**.`)
+    )
+    .setFooter({ text: "VANTHEN • NOT MADE TO BELONG." });
+
+  if (!ended) embed.setTimestamp(state.endsAt);
+  return embed;
+}
+
+async function updateGiveawayMessage(guild, state, ended = false) {
+  const channel = await guild.channels.fetch(state.channelId).catch(() => null);
+  if (!channel?.isTextBased()) return;
+
+  const message = await channel.messages.fetch(state.messageId).catch(() => null);
+  if (!message) return;
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`giveaway_enter:${state.messageId}`)
+      .setLabel(ended ? "Giveaway beendet" : "Teilnehmen")
+      .setEmoji("🎉")
+      .setStyle(ButtonStyle.Success)
+      .setDisabled(ended)
+  );
+
+  await message.edit({ embeds: [giveawayEmbed(state, ended)], components: [row] });
+}
+
+async function endGiveaway(guild, messageId) {
+  const loaded = await loadGiveawayState(guild, messageId);
+  if (!loaded || loaded.state.ended) return;
+
+  const state = loaded.state;
+  state.ended = true;
+
+  const pool = [...new Set(state.entrants || [])];
+  const winners = [];
+  const winnerCount = Math.min(state.winnerCount, pool.length);
+
+  while (winners.length < winnerCount && pool.length) {
+    const idx = crypto.randomInt(pool.length);
+    winners.push(pool.splice(idx, 1)[0]);
+  }
+
+  state.winners = winners;
+  await saveGiveawayState(guild, state, loaded.stateMessage);
+  await updateGiveawayMessage(guild, state, true);
+
+  const channel = await guild.channels.fetch(state.channelId).catch(() => null);
+  if (channel?.isTextBased()) {
+    if (winners.length) {
+      await channel.send(
+        `🎉 Glückwunsch ${winners.map(id => `<@${id}>`).join(", ")}! Ihr habt **${state.prize}** gewonnen. Bitte eröffnet ein Support-Ticket für die Abwicklung.`
+      );
+    } else {
+      await channel.send(`Das Giveaway **${state.prize}** ist beendet, aber es gab keine Teilnehmer.`);
+    }
+  }
+
+  const timer = scheduledGiveaways.get(messageId);
+  if (timer) clearTimeout(timer);
+  scheduledGiveaways.delete(messageId);
+}
+
+function scheduleGiveaway(guild, state) {
+  const messageId = state.messageId;
+  const delay = state.endsAt - Date.now();
+
+  const old = scheduledGiveaways.get(messageId);
+  if (old) clearTimeout(old);
+
+  if (delay <= 0) {
+    endGiveaway(guild, messageId).catch(console.error);
+    return;
+  }
+
+  const timer = setTimeout(() => {
+    endGiveaway(guild, messageId).catch(console.error);
+  }, Math.min(delay, 2147483647));
+
+  scheduledGiveaways.set(messageId, timer);
+}
+
+async function restoreGiveaways(guild) {
+  const channel = await ensureBotStateChannel(guild);
+  const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+  if (!messages) return;
+
+  for (const msg of messages.values()) {
+    if (!msg.content.startsWith("VANTHEN_GIVEAWAY:")) continue;
+
+    const parts = msg.content.split(":");
+    const messageId = parts[1];
+    try {
+      const state = JSON.parse(msg.content.slice(giveawayMarker(messageId).length));
+      if (!state.ended) scheduleGiveaway(guild, state);
+    } catch {}
+  }
+}
+
+async function createGiveawayCommand(interaction) {
+  const channel = findTextChannel(interaction.guild, "giveaways");
+  if (!channel) {
+    return interaction.reply({ content: "#giveaways wurde nicht gefunden.", ephemeral: true });
+  }
+
+  const prize = interaction.options.getString("preis", true);
+  const minutes = interaction.options.getInteger("minuten", true);
+  const winnerCount = interaction.options.getInteger("gewinner", true);
+
+  const provisional = {
+    messageId: "",
+    channelId: channel.id,
+    prize,
+    endsAt: Date.now() + minutes * 60 * 1000,
+    winnerCount,
+    entrants: [],
+    winners: [],
+    ended: false
+  };
+
+  const message = await channel.send({ embeds: [giveawayEmbed(provisional, false)] });
+  provisional.messageId = message.id;
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`giveaway_enter:${message.id}`)
+      .setLabel("Teilnehmen")
+      .setEmoji("🎉")
+      .setStyle(ButtonStyle.Success)
+  );
+
+  await message.edit({ embeds: [giveawayEmbed(provisional, false)], components: [row] });
+  await saveGiveawayState(interaction.guild, provisional);
+  scheduleGiveaway(interaction.guild, provisional);
+
+  await interaction.reply({ content: `✅ Giveaway erstellt: ${message.url}`, ephemeral: true });
+}
+
+async function handleGiveawayEntry(interaction, messageId) {
+  const loaded = await loadGiveawayState(interaction.guild, messageId);
+  if (!loaded) {
+    return interaction.reply({ content: "Dieses Giveaway konnte nicht gefunden werden.", ephemeral: true });
+  }
+
+  const state = loaded.state;
+  if (state.ended || Date.now() >= state.endsAt) {
+    await endGiveaway(interaction.guild, messageId).catch(() => null);
+    return interaction.reply({ content: "Dieses Giveaway ist bereits beendet.", ephemeral: true });
+  }
+
+  state.entrants = Array.isArray(state.entrants) ? state.entrants : [];
+  const index = state.entrants.indexOf(interaction.user.id);
+
+  let joined;
+  if (index >= 0) {
+    state.entrants.splice(index, 1);
+    joined = false;
+  } else {
+    state.entrants.push(interaction.user.id);
+    joined = true;
+  }
+
+  await saveGiveawayState(interaction.guild, state, loaded.stateMessage);
+  await updateGiveawayMessage(interaction.guild, state, false);
+
+  await interaction.reply({
+    content: joined ? "✅ Du nimmst am Giveaway teil." : "❌ Deine Teilnahme wurde entfernt.",
+    ephemeral: true
+  });
+}
+
+async function postManualAnnouncement(interaction, kind) {
+  const product = interaction.options.getString("produkt", true);
+  await sendDropAnnouncement(interaction.guild, [product], kind);
+  await interaction.reply({ content: "✅ Ankündigung wurde veröffentlicht.", ephemeral: true });
+}
+
+async function postSocial(interaction) {
+  const platform = interaction.options.getString("plattform", true);
+  const url = interaction.options.getString("url", true);
+  const text = interaction.options.getString("text") || "Neuer VANTHEN Content ist online.";
+
+  const channelName = platform === "tiktok" ? "tiktok" : "instagram";
+  const channel = findTextChannel(interaction.guild, channelName);
+  if (!channel) {
+    return interaction.reply({ content: `#${channelName} wurde nicht gefunden.`, ephemeral: true });
+  }
+
+  const role = interaction.guild.roles.cache.find(r => r.name === "📱 Social Alerts");
+  const embed = new EmbedBuilder()
+    .setColor(platform === "tiktok" ? COLORS.black : COLORS.purple)
+    .setTitle(platform === "tiktok" ? "🎵 NEW VANTHEN TIKTOK" : "📸 NEW VANTHEN INSTAGRAM POST")
+    .setDescription(text)
+    .setURL(url)
+    .setFooter({ text: "VANTHEN • SOCIAL" })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel(platform === "tiktok" ? "TIKTOK ÖFFNEN" : "INSTAGRAM ÖFFNEN")
+      .setStyle(ButtonStyle.Link)
+      .setURL(url)
+  );
+
+  await channel.send({
+    content: role ? `<@&${role.id}>` : undefined,
+    embeds: [embed],
+    components: [row],
+    allowedMentions: role ? { roles: [role.id] } : undefined
+  });
+
+  await interaction.reply({ content: "✅ Social-Ankündigung veröffentlicht.", ephemeral: true });
+}
+
+async function manageAccessRole(interaction, roleName) {
+  const action = interaction.options.getString("aktion", true);
+  const user = interaction.options.getUser("mitglied", true);
+  const member = await interaction.guild.members.fetch(user.id);
+  const role = interaction.guild.roles.cache.find(r => r.name === roleName);
+
+  if (!role) {
+    return interaction.reply({ content: `Rolle ${roleName} wurde nicht gefunden.`, ephemeral: true });
+  }
+
+  if (action === "add") {
+    await member.roles.add(role);
+    await interaction.reply({ content: `✅ ${user} hat jetzt **${roleName}**.`, ephemeral: true });
+  } else {
+    await member.roles.remove(role);
+    await interaction.reply({ content: `✅ **${roleName}** wurde bei ${user} entfernt.`, ephemeral: true });
+  }
+}
+
+async function postEarlyAccess(interaction) {
+  const text = interaction.options.getString("text", true);
+  const url = interaction.options.getString("url") || WEBSITE_URL;
+  const channel = findTextChannel(interaction.guild, "early-access");
+  const role = interaction.guild.roles.cache.find(r => r.name === "🔥 Early Access");
+
+  if (!channel) {
+    return interaction.reply({ content: "#early-access wurde nicht gefunden.", ephemeral: true });
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.navy)
+    .setTitle("🔥 VANTHEN EARLY ACCESS")
+    .setDescription(text)
+    .setURL(url)
+    .setFooter({ text: "EARLY ACCESS • VANTHEN" })
+    .setTimestamp();
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder().setLabel("EARLY ACCESS").setStyle(ButtonStyle.Link).setURL(url)
+  );
+
+  await channel.send({
+    content: role ? `<@&${role.id}>` : undefined,
+    embeds: [embed],
+    components: [row],
+    allowedMentions: role ? { roles: [role.id] } : undefined
+  });
+
+  await interaction.reply({ content: "✅ Early-Access-Post veröffentlicht.", ephemeral: true });
+}
+
+async function registerCommands(guild) {
+  const adminPerm = PermissionFlagsBits.ManageGuild;
+
+  const commands = [
+    new SlashCommandBuilder()
+      .setName("drop")
+      .setDescription("Veröffentlicht eine VANTHEN Drop-Ankündigung")
+      .setDefaultMemberPermissions(adminPerm)
+      .addStringOption(o => o.setName("produkt").setDescription("Produktname").setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName("restock")
+      .setDescription("Veröffentlicht eine VANTHEN Restock-Ankündigung")
+      .setDefaultMemberPermissions(adminPerm)
+      .addStringOption(o => o.setName("produkt").setDescription("Produktname").setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName("soldout")
+      .setDescription("Markiert ein Produkt als sold out")
+      .setDefaultMemberPermissions(adminPerm)
+      .addStringOption(o => o.setName("produkt").setDescription("Produktname").setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName("social")
+      .setDescription("Veröffentlicht einen Social-Media-Post im Discord")
+      .setDefaultMemberPermissions(adminPerm)
+      .addStringOption(o =>
+        o.setName("plattform").setDescription("Plattform").setRequired(true)
+          .addChoices(
+            { name: "Instagram", value: "instagram" },
+            { name: "TikTok", value: "tiktok" }
+          )
+      )
+      .addStringOption(o => o.setName("url").setDescription("Link zum Post").setRequired(true))
+      .addStringOption(o => o.setName("text").setDescription("Beschreibung").setRequired(false)),
+
+    new SlashCommandBuilder()
+      .setName("giveaway")
+      .setDescription("Startet ein VANTHEN Giveaway")
+      .setDefaultMemberPermissions(adminPerm)
+      .addStringOption(o => o.setName("preis").setDescription("Was wird verlost?").setRequired(true))
+      .addIntegerOption(o =>
+        o.setName("minuten").setDescription("Dauer in Minuten").setRequired(true).setMinValue(1).setMaxValue(20160)
+      )
+      .addIntegerOption(o =>
+        o.setName("gewinner").setDescription("Anzahl der Gewinner").setRequired(true).setMinValue(1).setMaxValue(10)
+      ),
+
+    new SlashCommandBuilder()
+      .setName("vip")
+      .setDescription("Verwaltet die VANTHEN VIP-Rolle")
+      .setDefaultMemberPermissions(adminPerm)
+      .addStringOption(o =>
+        o.setName("aktion").setDescription("Hinzufügen oder entfernen").setRequired(true)
+          .addChoices({ name: "Hinzufügen", value: "add" }, { name: "Entfernen", value: "remove" })
+      )
+      .addUserOption(o => o.setName("mitglied").setDescription("Mitglied").setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName("earlyaccess")
+      .setDescription("Verwaltet die Early-Access-Rolle")
+      .setDefaultMemberPermissions(adminPerm)
+      .addStringOption(o =>
+        o.setName("aktion").setDescription("Hinzufügen oder entfernen").setRequired(true)
+          .addChoices({ name: "Hinzufügen", value: "add" }, { name: "Entfernen", value: "remove" })
+      )
+      .addUserOption(o => o.setName("mitglied").setDescription("Mitglied").setRequired(true)),
+
+    new SlashCommandBuilder()
+      .setName("earlypost")
+      .setDescription("Postet eine exklusive Early-Access-Nachricht")
+      .setDefaultMemberPermissions(adminPerm)
+      .addStringOption(o => o.setName("text").setDescription("Nachricht").setRequired(true))
+      .addStringOption(o => o.setName("url").setDescription("Optionaler Link").setRequired(false))
+  ].map(c => c.toJSON());
+
+  await guild.commands.set(commands);
+  console.log(`✓ ${commands.length} Slash-Commands registriert.`);
 }
 
 client.once("ready", async () => {
@@ -547,15 +1025,17 @@ client.once("ready", async () => {
     await guild.channels.fetch();
 
     await setupPanels(guild);
-    await checkForNewDrops(guild);
+    await registerCommands(guild);
+    await checkForProductChanges(guild);
+    await restoreGiveaways(guild);
 
     setInterval(() => {
-      checkForNewDrops(guild).catch(err => console.error("Drop-Check Intervall:", err));
+      checkForProductChanges(guild).catch(err => console.error("Produkt-Check Intervall:", err));
     }, DROP_CHECK_MINUTES * 60 * 1000);
 
-    console.log("\n✅ VANTHEN Community Bot ist online.");
-    console.log(`Automatischer Drop-Check: alle ${DROP_CHECK_MINUTES} Minuten.`);
-    console.log(`Automatische Welcome-Nachrichten: ${ENABLE_MEMBER_WELCOME ? "AKTIV" : "VORBEREITET (noch deaktiviert)"}.`);
+    console.log("\n✅ VANTHEN Community Bot PRO ist online.");
+    console.log(`Produkt-/Restock-Check: alle ${DROP_CHECK_MINUTES} Minuten.`);
+    console.log(`Automatische Welcome-Nachrichten: ${ENABLE_MEMBER_WELCOME ? "AKTIV" : "DEAKTIVIERT"}.`);
   } catch (err) {
     console.error("Startfehler:", err);
   }
@@ -571,26 +1051,29 @@ client.on("interactionCreate", async interaction => {
     if (!interaction.guild) return;
 
     if (interaction.isButton()) {
-      if (interaction.customId === "role_drop_alerts") {
-        return toggleRole(interaction, "🔔 Drop Alerts");
-      }
-      if (interaction.customId === "role_restock_alerts") {
-        return toggleRole(interaction, "📦 Restock Alerts");
-      }
-      if (interaction.customId === "role_social_alerts") {
-        return toggleRole(interaction, "📱 Social Alerts");
-      }
-      if (interaction.customId === "ticket_claim") {
-        return claimTicket(interaction);
-      }
-      if (interaction.customId === "ticket_close") {
-        return closeTicket(interaction);
+      if (interaction.customId === "role_drop_alerts") return toggleRole(interaction, "🔔 Drop Alerts");
+      if (interaction.customId === "role_restock_alerts") return toggleRole(interaction, "📦 Restock Alerts");
+      if (interaction.customId === "role_social_alerts") return toggleRole(interaction, "📱 Social Alerts");
+      if (interaction.customId === "ticket_claim") return claimTicket(interaction);
+      if (interaction.customId === "ticket_close") return closeTicket(interaction);
+      if (interaction.customId.startsWith("giveaway_enter:")) {
+        return handleGiveawayEntry(interaction, interaction.customId.split(":")[1]);
       }
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId === "ticket_type") {
-      const selected = interaction.values[0] || "other";
-      return createTicket(interaction, selected);
+      return createTicket(interaction, interaction.values[0] || "other");
+    }
+
+    if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === "drop") return postManualAnnouncement(interaction, "drop");
+      if (interaction.commandName === "restock") return postManualAnnouncement(interaction, "restock");
+      if (interaction.commandName === "soldout") return postManualAnnouncement(interaction, "soldout");
+      if (interaction.commandName === "social") return postSocial(interaction);
+      if (interaction.commandName === "giveaway") return createGiveawayCommand(interaction);
+      if (interaction.commandName === "vip") return manageAccessRole(interaction, "⭐ VIP");
+      if (interaction.commandName === "earlyaccess") return manageAccessRole(interaction, "🔥 Early Access");
+      if (interaction.commandName === "earlypost") return postEarlyAccess(interaction);
     }
   } catch (err) {
     console.error("Interaction-Fehler:", err);
