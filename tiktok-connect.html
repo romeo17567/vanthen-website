@@ -7,15 +7,14 @@
   <style>
     body{margin:0;font-family:Arial,sans-serif;background:#09090b;color:#fff;min-height:100vh;display:grid;place-items:center}
     .card{width:min(720px,calc(100% - 40px));background:#151519;border:1px solid #2a2a31;border-radius:18px;padding:28px;box-sizing:border-box}
-    input{width:100%;box-sizing:border-box;padding:13px;border-radius:10px;border:1px solid #3a3a43;background:#0b0b0d;color:#fff;margin:10px 0 16px}
-    button{background:#fff;color:#000;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}
-    .muted{color:#aaa;font-size:14px}
+    h1{margin-top:0}input{width:100%;box-sizing:border-box;background:#09090b;color:#fff;border:1px solid #333;border-radius:10px;padding:12px;margin:10px 0 14px}
+    button{background:#fff;color:#000;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}.muted{color:#aaa}
   </style>
 </head>
 <body>
   <main class="card">
     <h1>VANTHEN × TikTok</h1>
-    <p>Gib nur deinen <b>Client Key</b> ein. Der Client Secret gehört hier nicht hinein.</p>
+    <p>Gib hier nur deinen <b>Client Key</b> ein. Kein Client Secret.</p>
     <input id="key" autocomplete="off" placeholder="TikTok Client Key">
     <button id="go">Mit TikTok verbinden</button>
     <p class="muted">Angeforderte Rechte: user.info.basic, video.list</p>
@@ -24,11 +23,8 @@
 document.getElementById("go").onclick=()=>{
   const key=document.getElementById("key").value.trim();
   if(!key){alert("Bitte Client Key eingeben.");return;}
-  const bytes=new Uint8Array(24);
-  crypto.getRandomValues(bytes);
-  const state=Array.from(bytes,b=>b.toString(16).padStart(2,"0")).join("");
-  sessionStorage.setItem("vanthen_tiktok_state",state);
   const redirect="https://romeo17567.github.io/vanthen-website/tiktok-callback.html";
+  const state=crypto.getRandomValues(new Uint32Array(4)).join("");
   const u=new URL("https://www.tiktok.com/v2/auth/authorize/");
   u.searchParams.set("client_key",key);
   u.searchParams.set("response_type","code");
