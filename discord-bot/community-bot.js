@@ -22,7 +22,7 @@ const ENABLE_MEMBER_WELCOME = String(process.env.ENABLE_MEMBER_WELCOME || "true"
 const DROP_CHECK_MINUTES = Math.max(5, Number(process.env.DROP_CHECK_MINUTES || 15));
 const SOCIAL_CHECK_MINUTES = Math.max(5, Number(process.env.SOCIAL_CHECK_MINUTES || 10));
 const INSTAGRAM_ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN || "";
-const INSTAGRAM_USER_ID = process.env.INSTAGRAM_USER_ID || "";
+const INSTAGRAM_USER_ID = process.env.INSTAGRAM_USER_ID || "";\nconst INSTAGRAM_API_BASE = process.env.INSTAGRAM_API_BASE || "https://graph.instagram.com/v25.0";
 const TIKTOK_ACCESS_TOKEN = process.env.TIKTOK_ACCESS_TOKEN || "";
 
 if (!TOKEN || !GUILD_ID) {
@@ -637,7 +637,7 @@ async function saveSocialState(state) {
 async function fetchInstagramPosts() {
   if (!INSTAGRAM_ACCESS_TOKEN || !INSTAGRAM_USER_ID) return null;
 
-  const url = new URL(`https://graph.facebook.com/${INSTAGRAM_USER_ID}/media`);
+  const url = new URL(`${INSTAGRAM_API_BASE}/${INSTAGRAM_USER_ID}/media`);
   url.searchParams.set("fields", "id,caption,media_type,permalink,timestamp,media_url,thumbnail_url");
   url.searchParams.set("limit", "10");
   url.searchParams.set("access_token", INSTAGRAM_ACCESS_TOKEN);
