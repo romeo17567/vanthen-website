@@ -20,6 +20,10 @@ const GUILD_ID = process.env.GUILD_ID;
 const WEBSITE_URL = process.env.WEBSITE_URL || "https://romeo17567.github.io/vanthen-website/";
 const ENABLE_MEMBER_WELCOME = String(process.env.ENABLE_MEMBER_WELCOME || "true").toLowerCase() === "true";
 const DROP_CHECK_MINUTES = Math.max(5, Number(process.env.DROP_CHECK_MINUTES || 15));
+const SOCIAL_CHECK_MINUTES = Math.max(5, Number(process.env.SOCIAL_CHECK_MINUTES || 10));
+const INSTAGRAM_ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN || "";
+const INSTAGRAM_USER_ID = process.env.INSTAGRAM_USER_ID || "";
+const TIKTOK_ACCESS_TOKEN = process.env.TIKTOK_ACCESS_TOKEN || "";
 
 if (!TOKEN || !GUILD_ID) {
   console.error("BOT_TOKEN oder GUILD_ID fehlt in der Umgebung.");
@@ -591,6 +595,195 @@ async function checkForProductChanges(guild) {
   }
 }
 
+
+async function getSocialState(guild) {
+  const channel = await ensureBotStateChannel(guild);
+  const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+  const stateMessage = messages?.find(
+    m => m.author.id === client.user.id && m.content.startsWith("VANTHEN_SOCIAL_STATE:")
+  );
+
+  if (!stateMessage) {
+    return { channel, message: null, instagram: [], tiktok: [] };
+  }
+
+  try {
+    const parsed = JSON.parse(stateMessage.content.replace("VANTHEN_SOCIAL_STATE:", ""));
+    return {
+      channel,
+      message: stateMessage,
+      instagram: Array.isArray(parsed.instagram) ? parsed.instagram : [],
+      tiktok: Array.isArray(parsed.tiktok) ? parsed.tiktok : []
+    };
+  } catch {
+    return { channel, message: stateMessage, instagram: [], tiktok: [] };
+  }
+}
+
+async function saveSocialState(state) {
+  const payload = {
+    instagram: (state.instagram || []).slice(0, 50),
+    tiktok: (state.tiktok || []).slice(0, 50)
+  };
+  const content = `VANTHEN_SOCIAL_STATE:${JSON.stringify(payload)}`;
+
+  if (state.message) {
+    await state.message.edit(content);
+  } else {
+    state.message = await state.channel.send(content);
+  }
+}
+
+async function fetchInstagramPosts() {
+  if (!INSTAGRAM_ACCESS_TOKEN || !INSTAGRAM_USER_ID) return null;
+
+  const url = new URL(`https://graph.facebook.com/${INSTAGRAM_USER_ID}/media`);
+  url.searchParams.set("fields", "id,caption,media_type,permalink,timestamp,media_url,thumbnail_url");
+  url.searchParams.set("limit", "10");
+  url.searchParams.set("access_token", INSTAGRAM_ACCESS_TOKEN);
+
+  const response = await fetch(url, {
+    headers: { "user-agent": "VANTHEN-Discord-Bot/3.0" },
+    cache: "no-store"
+  });
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.error) {
+    throw new Error(`Instagram API: ${body?.error?.message || "HTTP " + response.status}`);
+  }
+
+  return Array.isArray(body.data) ? body.data : [];
+}
+
+async function fetchTikTokPosts() {
+  if (!TIKTOK_ACCESS_TOKEN) return null;
+
+  const response = await fetch(
+    "https://open.tiktokapis.com/v2/video/list/?fields=id,title,video_description,duration,cover_image_url,embed_link,create_time",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${TIKTOK_ACCESS_TOKEN}`,
+        "Content-Type": "application/json",
+        "user-agent": "VANTHEN-Discord-Bot/3.0"
+      },
+      body: JSON.stringify({ max_count: 20 }),
+      cache: "no-store"
+    }
+  );
+
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body?.error?.code) {
+    throw new Error(`TikTok API: ${body?.error?.message || body?.error?.code || "HTTP " + response.status}`);
+  }
+
+  return Array.isArray(body?.data?.videos) ? body.data.videos : [];
+}
+
+async function announceDetectedSocial(guild, platform, post) {
+  const isInstagram = platform === "instagram";
+  const channel = findTextChannel(guild, isInstagram ? "instagram" : "tiktok");
+  if (!channel) return;
+
+  const alertRole = guild.roles.cache.find(r => r.name === "📱 Social Alerts");
+  const title = isInstagram ? "📸 NEW VANTHEN INSTAGRAM POST" : "🎵 NEW VANTHEN TIKTOK";
+  const description = isInstagram
+    ? (post.caption || "Neuer VANTHEN Instagram-Post ist online.")
+    : (post.video_description || post.title || "Neuer VANTHEN TikTok ist online.");
+  const postUrl = isInstagram ? post.permalink : post.embed_link;
+
+  const embed = new EmbedBuilder()
+    .setColor(isInstagram ? COLORS.purple : COLORS.black)
+    .setTitle(title)
+    .setDescription(String(description).slice(0, 3500))
+    .setFooter({ text: "VANTHEN • SOCIAL AUTO" })
+    .setTimestamp(post.timestamp ? new Date(post.timestamp) : post.create_time ? new Date(Number(post.create_time) * 1000) : new Date());
+
+  if (postUrl) embed.setURL(postUrl);
+  const imageUrl = isInstagram ? (post.thumbnail_url || post.media_url) : post.cover_image_url;
+  if (imageUrl) embed.setImage(imageUrl);
+
+  const components = [];
+  if (postUrl) {
+    components.push(
+      new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel(isInstagram ? "INSTAGRAM ÖFFNEN" : "TIKTOK ÖFFNEN")
+          .setStyle(ButtonStyle.Link)
+          .setURL(postUrl)
+      )
+    );
+  }
+
+  await channel.send({
+    content: alertRole ? `<@&${alertRole.id}>` : undefined,
+    embeds: [embed],
+    components,
+    allowedMentions: alertRole ? { roles: [alertRole.id] } : undefined
+  });
+}
+
+async function checkForSocialPosts(guild) {
+  const state = await getSocialState(guild);
+  let changed = false;
+
+  if (INSTAGRAM_ACCESS_TOKEN && INSTAGRAM_USER_ID) {
+    try {
+      const posts = await fetchInstagramPosts();
+      if (posts) {
+        const ids = posts.map(p => String(p.id));
+        if (!state.instagram.length) {
+          state.instagram = ids;
+          changed = true;
+          console.log(`Instagram Auto-Check initialisiert: ${ids.length} Posts gespeichert.`);
+        } else {
+          const seen = new Set(state.instagram);
+          const newPosts = posts.filter(p => !seen.has(String(p.id))).reverse();
+          for (const post of newPosts) {
+            await announceDetectedSocial(guild, "instagram", post);
+          }
+          if (newPosts.length) {
+            state.instagram = [...ids, ...state.instagram].filter((id, i, arr) => arr.indexOf(id) === i).slice(0, 50);
+            changed = true;
+            console.log(`Instagram Auto-Check: ${newPosts.length} neuer Post / neue Posts erkannt.`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Instagram Auto-Check Fehler:", err.message || err);
+    }
+  }
+
+  if (TIKTOK_ACCESS_TOKEN) {
+    try {
+      const posts = await fetchTikTokPosts();
+      if (posts) {
+        const ids = posts.map(p => String(p.id));
+        if (!state.tiktok.length) {
+          state.tiktok = ids;
+          changed = true;
+          console.log(`TikTok Auto-Check initialisiert: ${ids.length} Videos gespeichert.`);
+        } else {
+          const seen = new Set(state.tiktok);
+          const newPosts = posts.filter(p => !seen.has(String(p.id))).reverse();
+          for (const post of newPosts) {
+            await announceDetectedSocial(guild, "tiktok", post);
+          }
+          if (newPosts.length) {
+            state.tiktok = [...ids, ...state.tiktok].filter((id, i, arr) => arr.indexOf(id) === i).slice(0, 50);
+            changed = true;
+            console.log(`TikTok Auto-Check: ${newPosts.length} neues Video / neue Videos erkannt.`);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("TikTok Auto-Check Fehler:", err.message || err);
+    }
+  }
+
+  if (changed) await saveSocialState(state);
+}
+
 async function sendWelcome(member) {
   const memberRole = member.guild.roles.cache.find(r => r.name === "👤 Member");
   if (memberRole) await member.roles.add(memberRole).catch(() => null);
@@ -1027,14 +1220,22 @@ client.once("ready", async () => {
     await setupPanels(guild);
     await registerCommands(guild);
     await checkForProductChanges(guild);
+    await checkForSocialPosts(guild);
     await restoreGiveaways(guild);
 
     setInterval(() => {
       checkForProductChanges(guild).catch(err => console.error("Produkt-Check Intervall:", err));
     }, DROP_CHECK_MINUTES * 60 * 1000);
 
+    setInterval(() => {
+      checkForSocialPosts(guild).catch(err => console.error("Social-Check Intervall:", err));
+    }, SOCIAL_CHECK_MINUTES * 60 * 1000);
+
     console.log("\n✅ VANTHEN Community Bot PRO ist online.");
     console.log(`Produkt-/Restock-Check: alle ${DROP_CHECK_MINUTES} Minuten.`);
+    console.log(`Social Auto-Check: alle ${SOCIAL_CHECK_MINUTES} Minuten.`);
+    console.log(`Instagram Auto: ${INSTAGRAM_ACCESS_TOKEN && INSTAGRAM_USER_ID ? "BEREIT" : "WARTET AUF ZUGANGSDATEN"}.`);
+    console.log(`TikTok Auto: ${TIKTOK_ACCESS_TOKEN ? "BEREIT" : "WARTET AUF ZUGANGSDATEN"}.`);
     console.log(`Automatische Welcome-Nachrichten: ${ENABLE_MEMBER_WELCOME ? "AKTIV" : "DEAKTIVIERT"}.`);
   } catch (err) {
     console.error("Startfehler:", err);
