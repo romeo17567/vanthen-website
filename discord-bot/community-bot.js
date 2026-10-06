@@ -620,7 +620,7 @@ async function getSocialState(guild) {
   );
 
   if (!stateMessage) {
-    return { channel, message: null, instagram: [], tiktok: [] };
+    return { channel, message: null, instagram: [], tiktok: [], tiktokInitialized: false };
   }
 
   try {
@@ -629,17 +629,19 @@ async function getSocialState(guild) {
       channel,
       message: stateMessage,
       instagram: Array.isArray(parsed.instagram) ? parsed.instagram : [],
-      tiktok: Array.isArray(parsed.tiktok) ? parsed.tiktok : []
+      tiktok: Array.isArray(parsed.tiktok) ? parsed.tiktok : [],
+      tiktokInitialized: parsed.tiktokInitialized === true
     };
   } catch {
-    return { channel, message: stateMessage, instagram: [], tiktok: [] };
+    return { channel, message: stateMessage, instagram: [], tiktok: [], tiktokInitialized: false };
   }
 }
 
 async function saveSocialState(state) {
   const payload = {
     instagram: (state.instagram || []).slice(0, 50),
-    tiktok: (state.tiktok || []).slice(0, 50)
+    tiktok: (state.tiktok || []).slice(0, 50),
+    tiktokInitialized: state.tiktokInitialized === true
   };
   const content = `VANTHEN_SOCIAL_STATE:${JSON.stringify(payload)}`;
 
@@ -805,18 +807,33 @@ async function checkForSocialPosts(guild) {
       const posts = await fetchTikTokPosts(guild);
       if (posts) {
         const ids = posts.map(p => String(p.id));
-        if (!state.tiktok.length) {
+
+        if (!state.tiktokInitialized) {
+          // First successful TikTok sync: mark the baseline. If a video already exists,
+          // announce only the newest one once so the first real test post is not swallowed.
+          if (posts.length) {
+            const newest = [...posts].sort((a, b) => Number(b.create_time || 0) - Number(a.create_time || 0))[0];
+            await announceDetectedSocial(guild, "tiktok", newest);
+            console.log("TikTok Auto-Check: erstes erkanntes Video einmalig angekündigt.");
+          } else {
+            console.log("TikTok Auto-Check initialisiert: aktuell 0 Videos.");
+          }
+
           state.tiktok = ids;
+          state.tiktokInitialized = true;
           changed = true;
-          console.log(`TikTok Auto-Check initialisiert: ${ids.length} Videos gespeichert.`);
         } else {
           const seen = new Set(state.tiktok);
           const newPosts = posts.filter(p => !seen.has(String(p.id))).reverse();
+
           for (const post of newPosts) {
             await announceDetectedSocial(guild, "tiktok", post);
           }
+
           if (newPosts.length) {
-            state.tiktok = [...ids, ...state.tiktok].filter((id, i, arr) => arr.indexOf(id) === i).slice(0, 50);
+            state.tiktok = [...ids, ...state.tiktok]
+              .filter((id, i, arr) => arr.indexOf(id) === i)
+              .slice(0, 50);
             changed = true;
             console.log(`TikTok Auto-Check: ${newPosts.length} neues Video / neue Videos erkannt.`);
           }
