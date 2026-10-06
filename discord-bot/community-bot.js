@@ -718,7 +718,8 @@ async function fetchTikTokPosts(guild) {
   );
 
   const body = await response.json().catch(() => ({}));
-  if (!response.ok || body?.error?.code) {
+  const tiktokErrorCode = String(body?.error?.code || "").toLowerCase();
+  if (!response.ok || (tiktokErrorCode && tiktokErrorCode !== "ok")) {
     throw new Error(`TikTok API: ${body?.error?.message || body?.error?.code || "HTTP " + response.status}`);
   }
 
