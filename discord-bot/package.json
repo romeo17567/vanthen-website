@@ -1,0 +1,14 @@
+{
+  "name": "vanthen-discord-pro-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Persistent community bot for the VANTHEN Discord server.",
+  "main": "community-bot.js",
+  "scripts": {
+    "start": "node community-bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.5.0"
+  }
+}
