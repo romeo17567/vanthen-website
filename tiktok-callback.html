@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>VANTHEN TikTok Verbindung</title>
+  <style>
+    body{margin:0;font-family:Arial,sans-serif;background:#09090b;color:#fff;min-height:100vh;display:grid;place-items:center}
+    .card{width:min(720px,calc(100% - 40px));background:#151519;border:1px solid #2a2a31;border-radius:18px;padding:28px;box-sizing:border-box}
+    h1{margin-top:0}.ok{color:#86efac}.err{color:#fca5a5}.muted{color:#aaa}
+    code{display:block;background:#050506;padding:14px;border-radius:10px;word-break:break-all;margin:14px 0}
+    button{background:#fff;color:#000;border:0;border-radius:10px;padding:12px 16px;font-weight:700;cursor:pointer}
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>VANTHEN × TikTok</h1>
+    <div id="content">TikTok-Antwort wird geprüft …</div>
+  </main>
+<script>
+const q=new URLSearchParams(location.search);
+const code=q.get("code");
+const err=q.get("error");
+const desc=q.get("error_description");
+const content=document.getElementById("content");
+if(err){
+  content.innerHTML='<p class="err"><b>Verbindung fehlgeschlagen.</b></p><p>'+String(desc||err).replace(/[<>]/g,"")+'</p>';
+}else if(code){
+  const safe=code.replace(/[<>]/g,"");
+  content.innerHTML='<p class="ok"><b>Autorisierung erfolgreich.</b></p><p>Der einmalige TikTok-Code wurde empfangen. Behandle ihn wie ein Passwort und teile ihn nicht im Chat.</p><code id="code"></code><button id="copy">Code kopieren</button><p class="muted">Der Code läuft nach kurzer Zeit ab.</p>';
+  document.getElementById("code").textContent=code;
+  document.getElementById("copy").onclick=async()=>{await navigator.clipboard.writeText(code);document.getElementById("copy").textContent="Kopiert ✓";};
+}else{
+  content.innerHTML='<p class="muted">Kein TikTok-Autorisierungscode in der URL gefunden.</p>';
+}
+</script>
+</body>
+</html>
