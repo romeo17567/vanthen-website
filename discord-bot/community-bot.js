@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const crypto = require("crypto");
+const { createTikTokOAuth } = require("./tiktok-oauth");
 const {
   Client,
   GatewayIntentBits,
@@ -25,6 +26,9 @@ const INSTAGRAM_ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN || "";
 const INSTAGRAM_USER_ID = process.env.INSTAGRAM_USER_ID || "";
 const INSTAGRAM_API_BASE = process.env.INSTAGRAM_API_BASE || "https://graph.instagram.com/v25.0";
 const TIKTOK_ACCESS_TOKEN = process.env.TIKTOK_ACCESS_TOKEN || "";
+const TIKTOK_CLIENT_KEY = process.env.TIKTOK_CLIENT_KEY || "";
+const TIKTOK_CLIENT_SECRET = process.env.TIKTOK_CLIENT_SECRET || "";
+const TIKTOK_REDIRECT_URI = process.env.TIKTOK_REDIRECT_URI || "";
 
 if (!TOKEN || !GUILD_ID) {
   console.error("BOT_TOKEN oder GUILD_ID fehlt in der Umgebung.");
@@ -33,6 +37,17 @@ if (!TOKEN || !GUILD_ID) {
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers]
+});
+
+const tiktokOAuth = createTikTokOAuth({
+  client,
+  guildId: GUILD_ID,
+  botToken: TOKEN,
+  clientKey: TIKTOK_CLIENT_KEY,
+  clientSecret: TIKTOK_CLIENT_SECRET,
+  redirectUri: TIKTOK_REDIRECT_URI,
+  ensureStateChannel: ensureBotStateChannel,
+  onConnected: checkForSocialPosts
 });
 
 const COLORS = {
@@ -684,17 +699,18 @@ async function fetchInstagramPosts() {
   return Array.isArray(body.data) ? body.data : [];
 }
 
-async function fetchTikTokPosts() {
-  if (!TIKTOK_ACCESS_TOKEN) return null;
+async function fetchTikTokPosts(guild) {
+  const accessToken = (await tiktokOAuth.getAccessToken(guild)) || TIKTOK_ACCESS_TOKEN;
+  if (!accessToken) return null;
 
   const response = await fetch(
     "https://open.tiktokapis.com/v2/video/list/?fields=id,title,video_description,duration,cover_image_url,embed_link,create_time",
     {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${TIKTOK_ACCESS_TOKEN}`,
+        "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",
-        "user-agent": "VANTHEN-Discord-Bot/3.0"
+        "user-agent": "VANTHEN-Discord-Bot/4.0"
       },
       body: JSON.stringify({ max_count: 20 }),
       cache: "no-store"
@@ -783,9 +799,9 @@ async function checkForSocialPosts(guild) {
     }
   }
 
-  if (TIKTOK_ACCESS_TOKEN) {
+  if (TIKTOK_ACCESS_TOKEN || (TIKTOK_CLIENT_KEY && TIKTOK_CLIENT_SECRET && TIKTOK_REDIRECT_URI)) {
     try {
-      const posts = await fetchTikTokPosts();
+      const posts = await fetchTikTokPosts(guild);
       if (posts) {
         const ids = posts.map(p => String(p.id));
         if (!state.tiktok.length) {
@@ -1264,7 +1280,7 @@ client.once("ready", async () => {
     console.log(`Produkt-/Restock-Check: alle ${DROP_CHECK_MINUTES} Minuten.`);
     console.log(`Social Auto-Check: alle ${SOCIAL_CHECK_MINUTES} Minuten.`);
     console.log(`Instagram Auto: ${INSTAGRAM_ACCESS_TOKEN ? "BEREIT (User-ID automatisch)" : "WARTET AUF TOKEN"}.`);
-    console.log(`TikTok Auto: ${TIKTOK_ACCESS_TOKEN ? "BEREIT" : "WARTET AUF ZUGANGSDATEN"}.`);
+    console.log(`TikTok OAuth: ${TIKTOK_CLIENT_KEY && TIKTOK_CLIENT_SECRET && TIKTOK_REDIRECT_URI ? "BEREIT" : TIKTOK_ACCESS_TOKEN ? "LEGACY TOKEN AKTIV" : "WARTET AUF CLIENT KEY/SECRET"}.`);
     console.log(`Automatische Welcome-Nachrichten: ${ENABLE_MEMBER_WELCOME ? "AKTIV" : "DEAKTIVIERT"}.`);
   } catch (err) {
     console.error("Startfehler:", err);
@@ -1319,4 +1335,5 @@ client.on("interactionCreate", async interaction => {
   }
 });
 
+tiktokOAuth.startServer();
 client.login(TOKEN);
