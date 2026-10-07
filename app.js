@@ -20,39 +20,229 @@ const PRODUCTS=[
 {id:18,name:"LONDON GARMENTS MASK ZIP HOODIE",type:"MASK ZIP HOODIE · BLACK",category:"hoodies",price:45,size:["XS","S","M","L","XL"],desc:"Schwarzer Zip-Hoodie mit integrierter Masken-Kapuze und weißem VANTHEN Branding.",badge:"NEW",image:"assets/products/london-garments-black-mask-zip.svg"},
 {id:19,name:"SECURITY FOR SOCIETY TEE",type:"T-SHIRT · BLACK",category:"tees",price:35,size:["XS","S","M","L","XL"],desc:"Schwarzes VANTHEN T-Shirt mit weißem Frontlogo und großem Rückenprint.",badge:"NEW",image:"assets/products/security-for-society-black.svg"}];
 
-let cart=JSON.parse(localStorage.getItem("vanthen-cart")||"[]"),activeProduct=null,activeSize=null;
-const qs=s=>document.querySelector(s),qsa=s=>document.querySelectorAll(s),money=n=>n.toLocaleString("de-DE",{style:"currency",currency:"EUR"});
-function productMedia(p){return {src:p.image,style:""};}
+const $ = (s, root=document) => root.querySelector(s);
+const $$ = (s, root=document) => [...root.querySelectorAll(s)];
+const money = n => Number(n).toLocaleString("de-DE",{style:"currency",currency:"EUR"});
+
+function safeGet(key, fallback){
+  try{
+    const raw=localStorage.getItem(key);
+    return raw===null ? fallback : raw;
+  }catch(e){ return fallback; }
+}
+function safeSet(key,value){
+  try{ localStorage.setItem(key,value); }catch(e){}
+}
+
+let storedCart=[];
+try{ storedCart=JSON.parse(safeGet("vanthen-cart","[]"))||[]; }catch(e){ storedCart=[]; }
+
+let cart=storedCart
+  .map(item=>{
+    const current=PRODUCTS.find(p=>p.id===item.id);
+    if(!current) return null;
+    return {...current,size:item.size||current.size[0],qty:Math.max(1,Number(item.qty)||1)};
+  })
+  .filter(Boolean);
+
+let activeProduct=null;
+let activeSize=null;
+
+function mediaHTML(p,cls=""){
+  const alt=String(p.name||"VANTHEN Produkt").replace(/"/g,"&quot;");
+  return '<img class="'+cls+'" src="'+p.image+'" alt="'+alt+'" loading="lazy" decoding="async">';
+}
+
+function renderProducts(filter="all"){
+  const grid=$("#productGrid");
+  if(!grid) return;
+  grid.innerHTML="";
+  const list=PRODUCTS.filter(p=>filter==="all"||p.category===filter);
+
+  list.forEach(p=>{
+    const el=document.createElement("article");
+    el.className="product-card";
+    el.dataset.productId=String(p.id);
+    el.innerHTML=
+      '<div class="product-image">'+
+        mediaHTML(p)+
+        '<div class="product-image-fallback" aria-hidden="true"><span>VANTHEN</span><small>'+p.name+'</small></div>'+
+        '<span class="product-badge">'+p.badge+'</span>'+
+        '<button class="quick-add" type="button">AUSWÄHLEN</button>'+
+      '</div>'+
+      '<div class="product-info">'+
+        '<div>'+
+          '<h3>'+p.name+'</h3>'+
+          '<p>'+p.type+'</p>'+
+          '<div class="color-dots">'+
+            '<i style="background:#111"></i><i style="background:#14213d"></i><i style="background:#7b1e2b"></i><i style="background:#777"></i><i style="background:#d7c5aa"></i>'+
+          '</div>'+
+        '</div>'+
+        '<strong>'+money(p.price)+'</strong>'+
+      '</div>';
+
+    const img=$("img",el);
+    if(img){
+      img.addEventListener("load",()=>el.classList.add("image-loaded"));
+      img.addEventListener("error",()=>el.classList.add("image-error"));
+      if(img.complete && img.naturalWidth>0) el.classList.add("image-loaded");
+    }
+
+    el.addEventListener("click",()=>openProduct(p));
+    const quick=$(".quick-add",el);
+    if(quick) quick.addEventListener("click",e=>{e.stopPropagation();openProduct(p);});
+    grid.appendChild(el);
+  });
+}
 
 function openProduct(p){
- activeProduct=p;activeSize=p.size[0];
- qs("#modalType").textContent=p.type;qs("#modalName").textContent=p.name;qs("#modalPrice").textContent=money(p.price);qs("#modalDescription").textContent=p.desc;const modalArt=qs(".modal-art"); modalArt.innerHTML=mediaHTML(p,"modal-media");
- qs("#modalSizes").innerHTML=p.size.map((s,i)=>`<button class="size ${i===0?"selected":""}" data-size="${s}">${s}</button>`).join("");
- qsa("#modalSizes .size").forEach(b=>b.onclick=()=>{activeSize=b.dataset.size;qsa("#modalSizes .size").forEach(x=>x.classList.remove("selected"));b.classList.add("selected")});
- qs("#productModal").classList.add("show");qs("#overlay").classList.add("show")
+  activeProduct=p;
+  activeSize=p.size[0];
+
+  const type=$("#modalType"),name=$("#modalName"),price=$("#modalPrice"),description=$("#modalDescription");
+  if(type) type.textContent=p.type;
+  if(name) name.textContent=p.name;
+  if(price) price.textContent=money(p.price);
+  if(description) description.textContent=p.desc;
+
+  const modalArt=$(".modal-art");
+  if(modalArt) modalArt.innerHTML=mediaHTML(p,"modal-media");
+
+  const sizes=$("#modalSizes");
+  if(sizes){
+    sizes.innerHTML=p.size.map((s,i)=>'<button class="size '+(i===0?"selected":"")+'" data-size="'+s+'" type="button">'+s+'</button>').join("");
+    $$(".size",sizes).forEach(b=>b.addEventListener("click",()=>{
+      activeSize=b.dataset.size;
+      $$(".size",sizes).forEach(x=>x.classList.remove("selected"));
+      b.classList.add("selected");
+    }));
+  }
+
+  $("#productModal")?.classList.add("show");
+  $("#overlay")?.classList.add("show");
 }
 
-function closeAll(){qs("#productModal").classList.remove("show");qs("#cartDrawer").classList.remove("open");qs("#overlay").classList.remove("show")}
-function openCart(){qs("#cartDrawer").classList.add("open");qs("#overlay").classList.add("show")}
-function addToCart(p,size){const found=cart.find(x=>x.id===p.id&&x.size===size);if(found)found.qty++;else cart.push({...p,size,qty:1});saveCart();closeAll();openCart()}
-function saveCart(){localStorage.setItem("vanthen-cart",JSON.stringify(cart));renderCart()}
+function closeAll(){
+  $("#productModal")?.classList.remove("show");
+  $("#cartDrawer")?.classList.remove("open");
+  $("#overlay")?.classList.remove("show");
+}
+
+function openCart(){
+  $("#cartDrawer")?.classList.add("open");
+  $("#overlay")?.classList.add("show");
+}
+
+function addToCart(p,size){
+  if(!p) return;
+  const found=cart.find(x=>x.id===p.id&&x.size===size);
+  if(found) found.qty++;
+  else cart.push({...p,size,qty:1});
+  saveCart();
+  closeAll();
+  openCart();
+}
+
+function saveCart(){
+  safeSet("vanthen-cart",JSON.stringify(cart));
+  renderCart();
+}
 
 function renderCart(){
- const count=cart.reduce((a,b)=>a+b.qty,0),total=cart.reduce((a,b)=>a+b.price*b.qty,0);
- qs("#cartCount").textContent=count;qs("#cartTotal").textContent=money(total);qs("#cartEmpty").style.display=cart.length?"none":"block";
- qs("#cartItems").innerHTML=cart.map((x,i)=>{const media=productMedia(x);return `<div class="cart-item">${mediaHTML(x,"cart-media")}<div><h4>${x.name}</h4><p>GRÖSSE ${x.size} · ${money(x.price)}</p><div class="qty"><button onclick="changeQty(${i},-1)">−</button><span>${x.qty}</span><button onclick="changeQty(${i},1)">+</button></div></div><button class="remove" onclick="removeItem(${i})">ENTFERNEN</button></div>`}).join("");
- const remain=Math.max(0,120-total);qs("#shippingNote").textContent=remain===0?"KOSTENLOSER VERSAND FREIGESCHALTET.":`Noch ${money(remain)} bis kostenloser Versand.`;qs("#progressBar").style.width=Math.min(100,total/120*100)+"%"
+  const count=cart.reduce((a,b)=>a+b.qty,0);
+  const total=cart.reduce((a,b)=>a+b.price*b.qty,0);
+
+  if($("#cartCount")) $("#cartCount").textContent=String(count);
+  if($("#cartTotal")) $("#cartTotal").textContent=money(total);
+  if($("#cartEmpty")) $("#cartEmpty").style.display=cart.length?"none":"block";
+
+  const items=$("#cartItems");
+  if(items){
+    items.innerHTML=cart.map((x,i)=>
+      '<div class="cart-item">'+
+        mediaHTML(x,"cart-media")+
+        '<div><h4>'+x.name+'</h4><p>GRÖSSE '+x.size+' · '+money(x.price)+'</p>'+
+        '<div class="qty"><button type="button" data-action="minus" data-index="'+i+'">−</button><span>'+x.qty+'</span><button type="button" data-action="plus" data-index="'+i+'">+</button></div></div>'+
+        '<button class="remove" type="button" data-action="remove" data-index="'+i+'">ENTFERNEN</button>'+
+      '</div>'
+    ).join("");
+
+    $$("[data-action]",items).forEach(btn=>btn.addEventListener("click",()=>{
+      const i=Number(btn.dataset.index);
+      if(btn.dataset.action==="plus") cart[i].qty++;
+      if(btn.dataset.action==="minus") cart[i].qty--;
+      if(btn.dataset.action==="remove" || cart[i]?.qty<=0) cart.splice(i,1);
+      saveCart();
+    }));
+  }
+
+  const remain=Math.max(0,120-total);
+  if($("#shippingNote")) $("#shippingNote").textContent=remain===0?"KOSTENLOSER VERSAND FREIGESCHALTET.":"Noch "+money(remain)+" bis kostenloser Versand.";
+  if($("#progressBar")) $("#progressBar").style.width=Math.min(100,total/120*100)+"%";
 }
 
-window.changeQty=(i,d)=>{cart[i].qty+=d;if(cart[i].qty<=0)cart.splice(i,1);saveCart()};window.removeItem=i=>{cart.splice(i,1);saveCart()};
+$$(".filter").forEach(b=>b.addEventListener("click",()=>{
+  $$(".filter").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");
+  renderProducts(b.dataset.filter||"all");
+}));
 
-qsa(".filter").forEach(b=>b.onclick=()=>{qsa(".filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderProducts(b.dataset.filter)});
-qs("#cartBtn").onclick=openCart;qs("#closeCart").onclick=closeAll;qs("#overlay").onclick=closeAll;qs("#modalClose").onclick=closeAll;qs("#modalAdd").onclick=()=>addToCart(activeProduct,activeSize);
-qs("#menuBtn").onclick=()=>qs("#mobileMenu").style.display=qs("#mobileMenu").style.display==="flex"?"none":"flex";
-qs("#searchBtn").onclick=()=>{qs("#searchPanel").classList.add("open");setTimeout(()=>qs("#searchInput").focus(),200)};qs("#closeSearch").onclick=()=>qs("#searchPanel").classList.remove("open");
-qs("#searchInput").oninput=e=>{const q=e.target.value.toLowerCase().trim();qs("#searchResults").innerHTML=q?PRODUCTS.filter(p=>(p.name+" "+p.type).toLowerCase().includes(q)).map(p=>`<div class="search-result"><span>${p.name}</span><span>${money(p.price)}</span></div>`).join(""):""};
-qs("#newsletterForm").onsubmit=e=>{e.preventDefault();localStorage.setItem("vanthen-newsletter",qs("#newsletterEmail").value);qs("#newsletterMessage").textContent="DU BIST AUF DER PRIVATE-ACCESS-LISTE.";e.target.reset()};
-qs("#contactForm").onsubmit=e=>{e.preventDefault();const subject=encodeURIComponent("VANTHEN Anfrage"),body=encodeURIComponent(`Name: ${qs("#contactName").value}\nE-Mail: ${qs("#contactEmail").value}\n\n${qs("#contactMessage").value}`);qs("#contactStatus").textContent="Dein E-Mail-Programm wird geöffnet.";location.href=`mailto:contact@vanthen.de?subject=${subject}&body=${body}`};
-qs("#checkoutBtn").onclick=()=>{if(!cart.length){alert("Dein Warenkorb ist leer.");return}const total=cart.reduce((a,b)=>a+b.price*b.qty,0),summary=cart.map(x=>`${x.qty}x ${x.name} / ${x.size}`).join("%0A");location.href=`mailto:orders@vanthen.de?subject=VANTHEN%20Bestellanfrage&body=${summary}%0A%0ASumme:%20${encodeURIComponent(money(total))}`};
-if(!localStorage.getItem("vanthen-cookie"))qs("#cookieBanner").style.display="flex";qs("#acceptCookies").onclick=()=>{localStorage.setItem("vanthen-cookie","1");qs("#cookieBanner").style.display="none"};
-renderProducts();renderCart();
+$("#cartBtn")?.addEventListener("click",openCart);
+$("#closeCart")?.addEventListener("click",closeAll);
+$("#overlay")?.addEventListener("click",closeAll);
+$("#modalClose")?.addEventListener("click",closeAll);
+$("#modalAdd")?.addEventListener("click",()=>addToCart(activeProduct,activeSize));
+
+$("#menuBtn")?.addEventListener("click",()=>{
+  const menu=$("#mobileMenu");
+  if(menu) menu.style.display=menu.style.display==="flex"?"none":"flex";
+});
+
+$("#searchBtn")?.addEventListener("click",()=>{
+  $("#searchPanel")?.classList.add("open");
+  setTimeout(()=>$("#searchInput")?.focus(),200);
+});
+$("#closeSearch")?.addEventListener("click",()=>$("#searchPanel")?.classList.remove("open"));
+
+$("#searchInput")?.addEventListener("input",e=>{
+  const q=e.target.value.toLowerCase().trim();
+  const out=$("#searchResults");
+  if(!out) return;
+  out.innerHTML=q
+    ? PRODUCTS.filter(p=>(p.name+" "+p.type).toLowerCase().includes(q))
+        .map(p=>'<div class="search-result"><span>'+p.name+'</span><span>'+money(p.price)+'</span></div>').join("")
+    : "";
+});
+
+$("#newsletterForm")?.addEventListener("submit",e=>{
+  e.preventDefault();
+  safeSet("vanthen-newsletter",$("#newsletterEmail")?.value||"");
+  if($("#newsletterMessage")) $("#newsletterMessage").textContent="DU BIST AUF DER PRIVATE-ACCESS-LISTE.";
+  e.target.reset();
+});
+
+$("#contactForm")?.addEventListener("submit",e=>{
+  e.preventDefault();
+  const subject=encodeURIComponent("VANTHEN Anfrage");
+  const body=encodeURIComponent("Name: "+($("#contactName")?.value||"")+"\nE-Mail: "+($("#contactEmail")?.value||"")+"\n\n"+($("#contactMessage")?.value||""));
+  if($("#contactStatus")) $("#contactStatus").textContent="Dein E-Mail-Programm wird geöffnet.";
+  location.href="mailto:contact@vanthen.de?subject="+subject+"&body="+body;
+});
+
+$("#checkoutBtn")?.addEventListener("click",()=>{
+  if(!cart.length){ alert("Dein Warenkorb ist leer."); return; }
+  const total=cart.reduce((a,b)=>a+b.price*b.qty,0);
+  const summary=cart.map(x=>x.qty+"x "+x.name+" / "+x.size).join("%0A");
+  location.href="mailto:orders@vanthen.de?subject=VANTHEN%20Bestellanfrage&body="+summary+"%0A%0ASumme:%20"+encodeURIComponent(money(total));
+});
+
+if(!safeGet("vanthen-cookie","")){
+  if($("#cookieBanner")) $("#cookieBanner").style.display="flex";
+}
+$("#acceptCookies")?.addEventListener("click",()=>{
+  safeSet("vanthen-cookie","1");
+  if($("#cookieBanner")) $("#cookieBanner").style.display="none";
+});
+
+renderProducts();
+renderCart();
