@@ -22,20 +22,30 @@ const PRODUCTS=[
 
 let cart=JSON.parse(localStorage.getItem("vanthen-cart")||"[]"),activeProduct=null,activeSize=null;
 const qs=s=>document.querySelector(s),qsa=s=>document.querySelectorAll(s),money=n=>n.toLocaleString("de-DE",{style:"currency",currency:"EUR"});
-function productMedia(p){return {src:p.image,style:""};}
+const PRODUCT_SPRITE="assets/products/vanthen-products-sprite.webp?v=10";
+function productMedia(p){
+  if(p.id<7)return {src:p.image,style:""};
+  const sprite=p.id-7,col=sprite%4,row=Math.floor(sprite/4);
+  return {src:"",style:`background-image:url('${PRODUCT_SPRITE}');background-size:400% 400%;background-position:${col*100/3}% ${row*100/3}%;background-repeat:no-repeat;background-color:#fff;`};
+}
+function mediaHTML(p,cls=""){
+ const m=productMedia(p);
+ if(m.src)return `<img class="${cls}" src="${m.src}" alt="${p.name}" loading="lazy">`;
+ return `<div class="sprite-product ${cls}" style="${m.style}" role="img" aria-label="${p.name}"></div>`;
+}
 
 function renderProducts(filter="all"){
  const grid=qs("#productGrid");grid.innerHTML="";
  PRODUCTS.filter(p=>filter==="all"||p.category===filter).forEach(p=>{
    const el=document.createElement("article");el.className="product-card";
-   const media=productMedia(p); el.innerHTML=`<div class="product-image"><img src="${media.src}" style="${media.style}" alt="${p.name}" loading="lazy"><span class="product-badge">${p.badge}</span><button class="quick-add">AUSWÄHLEN</button></div><div class="product-info"><div><h3>${p.name}</h3><p>${p.type}</p><div class="color-dots"><i style="background:#111" title="Black"></i><i style="background:#14213d" title="Navy"></i><i style="background:#7b1e2b" title="Wine Red"></i><i style="background:#777" title="Gray"></i><i style="background:#d7c5aa" title="Beige"></i></div></div><strong>${money(p.price)}</strong></div>`;
+   const media=productMedia(p); el.innerHTML=`<div class="product-image">${mediaHTML(p)}<span class="product-badge">${p.badge}</span><button class="quick-add">AUSWÄHLEN</button></div><div class="product-info"><div><h3>${p.name}</h3><p>${p.type}</p><div class="color-dots"><i style="background:#111" title="Black"></i><i style="background:#14213d" title="Navy"></i><i style="background:#7b1e2b" title="Wine Red"></i><i style="background:#777" title="Gray"></i><i style="background:#d7c5aa" title="Beige"></i></div></div><strong>${money(p.price)}</strong></div>`;
    el.onclick=e=>{if(e.target.classList.contains("quick-add"))e.stopPropagation();openProduct(p)};grid.appendChild(el)
  })
 }
 
 function openProduct(p){
  activeProduct=p;activeSize=p.size[0];
- qs("#modalType").textContent=p.type;qs("#modalName").textContent=p.name;qs("#modalPrice").textContent=money(p.price);qs("#modalDescription").textContent=p.desc;const media=productMedia(p);qs("#modalImage").src=media.src;qs("#modalImage").style.cssText=media.style;qs("#modalImage").alt=p.name;
+ qs("#modalType").textContent=p.type;qs("#modalName").textContent=p.name;qs("#modalPrice").textContent=money(p.price);qs("#modalDescription").textContent=p.desc;const modalArt=qs(".modal-art"); modalArt.innerHTML=mediaHTML(p,"modal-media");
  qs("#modalSizes").innerHTML=p.size.map((s,i)=>`<button class="size ${i===0?"selected":""}" data-size="${s}">${s}</button>`).join("");
  qsa("#modalSizes .size").forEach(b=>b.onclick=()=>{activeSize=b.dataset.size;qsa("#modalSizes .size").forEach(x=>x.classList.remove("selected"));b.classList.add("selected")});
  qs("#productModal").classList.add("show");qs("#overlay").classList.add("show")
@@ -49,7 +59,7 @@ function saveCart(){localStorage.setItem("vanthen-cart",JSON.stringify(cart));re
 function renderCart(){
  const count=cart.reduce((a,b)=>a+b.qty,0),total=cart.reduce((a,b)=>a+b.price*b.qty,0);
  qs("#cartCount").textContent=count;qs("#cartTotal").textContent=money(total);qs("#cartEmpty").style.display=cart.length?"none":"block";
- qs("#cartItems").innerHTML=cart.map((x,i)=>{const media=productMedia(x);return `<div class="cart-item"><img src="${media.src}" style="${media.style}" alt="${x.name}"><div><h4>${x.name}</h4><p>GRÖSSE ${x.size} · ${money(x.price)}</p><div class="qty"><button onclick="changeQty(${i},-1)">−</button><span>${x.qty}</span><button onclick="changeQty(${i},1)">+</button></div></div><button class="remove" onclick="removeItem(${i})">ENTFERNEN</button></div>`}).join("");
+ qs("#cartItems").innerHTML=cart.map((x,i)=>{const media=productMedia(x);return `<div class="cart-item">${mediaHTML(x,"cart-media")}<div><h4>${x.name}</h4><p>GRÖSSE ${x.size} · ${money(x.price)}</p><div class="qty"><button onclick="changeQty(${i},-1)">−</button><span>${x.qty}</span><button onclick="changeQty(${i},1)">+</button></div></div><button class="remove" onclick="removeItem(${i})">ENTFERNEN</button></div>`}).join("");
  const remain=Math.max(0,120-total);qs("#shippingNote").textContent=remain===0?"KOSTENLOSER VERSAND FREIGESCHALTET.":`Noch ${money(remain)} bis kostenloser Versand.`;qs("#progressBar").style.width=Math.min(100,total/120*100)+"%"
 }
 
