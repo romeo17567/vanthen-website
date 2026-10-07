@@ -27,7 +27,7 @@ function productMedia(p){
  if(p.sprite===undefined)return {src:p.image,style:""};
  const col=p.sprite%4,row=Math.floor(p.sprite/4);
  const x=(col*100/3),y=(row*100/3);
- return {src:TRANSPARENT_PIXEL,style:`background-image:url('${p.image}');background-size:400% 400%;background-position:${x}% ${y}%;background-repeat:no-repeat;background-color:#fff;`};
+ return {src:p.image,style:`object-fit:none;width:100%;height:100%;background:#fff;object-position:${x}% ${y}%;`};
 }
 
 function renderProducts(filter="all"){
