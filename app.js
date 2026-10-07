@@ -21,7 +21,7 @@ const PRODUCTS=[
 {id:19,name:"SECURITY FOR SOCIETY TEE",type:"T-SHIRT · BLACK",category:"tees",price:35,size:["XS","S","M","L","XL"],desc:"Schwarzes VANTHEN T-Shirt mit weißem Frontlogo und großem Rückenprint.",badge:"NEW",image:"assets/products/vanthen-products-sprite.webp",sprite:12}];
 
 let cart=JSON.parse(localStorage.getItem("vanthen-cart")||"[]"),activeProduct=null,activeSize=null;
-const $=s=>document.querySelector(s),$=s=>document.querySelectorAll(s),money=n=>n.toLocaleString("de-DE",{style:"currency",currency:"EUR"});
+const qs=s=>document.querySelector(s),qsa=s=>document.querySelectorAll(s),money=n=>n.toLocaleString("de-DE",{style:"currency",currency:"EUR"});
 const TRANSPARENT_PIXEL="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 function productMedia(p){
  if(p.sprite===undefined)return {src:p.image,style:""};
@@ -31,7 +31,7 @@ function productMedia(p){
 }
 
 function renderProducts(filter="all"){
- const grid=$("#productGrid");grid.innerHTML="";
+ const grid=qs("#productGrid");grid.innerHTML="";
  PRODUCTS.filter(p=>filter==="all"||p.category===filter).forEach(p=>{
    const el=document.createElement("article");el.className="product-card";
    const media=productMedia(p); el.innerHTML=`<div class="product-image"><img src="${media.src}" style="${media.style}" alt="${p.name}" loading="lazy"><span class="product-badge">${p.badge}</span><button class="quick-add">AUSWÄHLEN</button></div><div class="product-info"><div><h3>${p.name}</h3><p>${p.type}</p><div class="color-dots"><i style="background:#111" title="Black"></i><i style="background:#14213d" title="Navy"></i><i style="background:#7b1e2b" title="Wine Red"></i><i style="background:#777" title="Gray"></i><i style="background:#d7c5aa" title="Beige"></i></div></div><strong>${money(p.price)}</strong></div>`;
@@ -41,33 +41,33 @@ function renderProducts(filter="all"){
 
 function openProduct(p){
  activeProduct=p;activeSize=p.size[0];
- $("#modalType").textContent=p.type;$("#modalName").textContent=p.name;$("#modalPrice").textContent=money(p.price);$("#modalDescription").textContent=p.desc;const media=productMedia(p);$("#modalImage").src=media.src;$("#modalImage").style.cssText=media.style;$("#modalImage").alt=p.name;
- $("#modalSizes").innerHTML=p.size.map((s,i)=>`<button class="size ${i===0?"selected":""}" data-size="${s}">${s}</button>`).join("");
- $$("#modalSizes .size").forEach(b=>b.onclick=()=>{activeSize=b.dataset.size;$$("#modalSizes .size").forEach(x=>x.classList.remove("selected"));b.classList.add("selected")});
- $("#productModal").classList.add("show");$("#overlay").classList.add("show")
+ qs("#modalType").textContent=p.type;qs("#modalName").textContent=p.name;qs("#modalPrice").textContent=money(p.price);qs("#modalDescription").textContent=p.desc;const media=productMedia(p);qs("#modalImage").src=media.src;qs("#modalImage").style.cssText=media.style;qs("#modalImage").alt=p.name;
+ qs("#modalSizes").innerHTML=p.size.map((s,i)=>`<button class="size ${i===0?"selected":""}" data-size="${s}">${s}</button>`).join("");
+ qsa("#modalSizes .size").forEach(b=>b.onclick=()=>{activeSize=b.dataset.size;qsa("#modalSizes .size").forEach(x=>x.classList.remove("selected"));b.classList.add("selected")});
+ qs("#productModal").classList.add("show");qs("#overlay").classList.add("show")
 }
 
-function closeAll(){$("#productModal").classList.remove("show");$("#cartDrawer").classList.remove("open");$("#overlay").classList.remove("show")}
-function openCart(){$("#cartDrawer").classList.add("open");$("#overlay").classList.add("show")}
+function closeAll(){qs("#productModal").classList.remove("show");qs("#cartDrawer").classList.remove("open");qs("#overlay").classList.remove("show")}
+function openCart(){qs("#cartDrawer").classList.add("open");qs("#overlay").classList.add("show")}
 function addToCart(p,size){const found=cart.find(x=>x.id===p.id&&x.size===size);if(found)found.qty++;else cart.push({...p,size,qty:1});saveCart();closeAll();openCart()}
 function saveCart(){localStorage.setItem("vanthen-cart",JSON.stringify(cart));renderCart()}
 
 function renderCart(){
  const count=cart.reduce((a,b)=>a+b.qty,0),total=cart.reduce((a,b)=>a+b.price*b.qty,0);
- $("#cartCount").textContent=count;$("#cartTotal").textContent=money(total);$("#cartEmpty").style.display=cart.length?"none":"block";
- $("#cartItems").innerHTML=cart.map((x,i)=>{const media=productMedia(x);return `<div class="cart-item"><img src="${media.src}" style="${media.style}" alt="${x.name}"><div><h4>${x.name}</h4><p>GRÖSSE ${x.size} · ${money(x.price)}</p><div class="qty"><button onclick="changeQty(${i},-1)">−</button><span>${x.qty}</span><button onclick="changeQty(${i},1)">+</button></div></div><button class="remove" onclick="removeItem(${i})">ENTFERNEN</button></div>`}).join("");
- const remain=Math.max(0,120-total);$("#shippingNote").textContent=remain===0?"KOSTENLOSER VERSAND FREIGESCHALTET.":`Noch ${money(remain)} bis kostenloser Versand.`;$("#progressBar").style.width=Math.min(100,total/120*100)+"%"
+ qs("#cartCount").textContent=count;qs("#cartTotal").textContent=money(total);qs("#cartEmpty").style.display=cart.length?"none":"block";
+ qs("#cartItems").innerHTML=cart.map((x,i)=>{const media=productMedia(x);return `<div class="cart-item"><img src="${media.src}" style="${media.style}" alt="${x.name}"><div><h4>${x.name}</h4><p>GRÖSSE ${x.size} · ${money(x.price)}</p><div class="qty"><button onclick="changeQty(${i},-1)">−</button><span>${x.qty}</span><button onclick="changeQty(${i},1)">+</button></div></div><button class="remove" onclick="removeItem(${i})">ENTFERNEN</button></div>`}).join("");
+ const remain=Math.max(0,120-total);qs("#shippingNote").textContent=remain===0?"KOSTENLOSER VERSAND FREIGESCHALTET.":`Noch ${money(remain)} bis kostenloser Versand.`;qs("#progressBar").style.width=Math.min(100,total/120*100)+"%"
 }
 
 window.changeQty=(i,d)=>{cart[i].qty+=d;if(cart[i].qty<=0)cart.splice(i,1);saveCart()};window.removeItem=i=>{cart.splice(i,1);saveCart()};
 
-$$(".filter").forEach(b=>b.onclick=()=>{$$(".filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderProducts(b.dataset.filter)});
-$("#cartBtn").onclick=openCart;$("#closeCart").onclick=closeAll;$("#overlay").onclick=closeAll;$("#modalClose").onclick=closeAll;$("#modalAdd").onclick=()=>addToCart(activeProduct,activeSize);
-$("#menuBtn").onclick=()=>$("#mobileMenu").style.display=$("#mobileMenu").style.display==="flex"?"none":"flex";
-$("#searchBtn").onclick=()=>{$("#searchPanel").classList.add("open");setTimeout(()=>$("#searchInput").focus(),200)};$("#closeSearch").onclick=()=>$("#searchPanel").classList.remove("open");
-$("#searchInput").oninput=e=>{const q=e.target.value.toLowerCase().trim();$("#searchResults").innerHTML=q?PRODUCTS.filter(p=>(p.name+" "+p.type).toLowerCase().includes(q)).map(p=>`<div class="search-result"><span>${p.name}</span><span>${money(p.price)}</span></div>`).join(""):""};
-$("#newsletterForm").onsubmit=e=>{e.preventDefault();localStorage.setItem("vanthen-newsletter",$("#newsletterEmail").value);$("#newsletterMessage").textContent="DU BIST AUF DER PRIVATE-ACCESS-LISTE.";e.target.reset()};
-$("#contactForm").onsubmit=e=>{e.preventDefault();const subject=encodeURIComponent("VANTHEN Anfrage"),body=encodeURIComponent(`Name: ${$("#contactName").value}\nE-Mail: ${$("#contactEmail").value}\n\n${$("#contactMessage").value}`);$("#contactStatus").textContent="Dein E-Mail-Programm wird geöffnet.";location.href=`mailto:contact@vanthen.de?subject=${subject}&body=${body}`};
-$("#checkoutBtn").onclick=()=>{if(!cart.length){alert("Dein Warenkorb ist leer.");return}const total=cart.reduce((a,b)=>a+b.price*b.qty,0),summary=cart.map(x=>`${x.qty}x ${x.name} / ${x.size}`).join("%0A");location.href=`mailto:orders@vanthen.de?subject=VANTHEN%20Bestellanfrage&body=${summary}%0A%0ASumme:%20${encodeURIComponent(money(total))}`};
-if(!localStorage.getItem("vanthen-cookie"))$("#cookieBanner").style.display="flex";$("#acceptCookies").onclick=()=>{localStorage.setItem("vanthen-cookie","1");$("#cookieBanner").style.display="none"};
+qsa(".filter").forEach(b=>b.onclick=()=>{qsa(".filter").forEach(x=>x.classList.remove("active"));b.classList.add("active");renderProducts(b.dataset.filter)});
+qs("#cartBtn").onclick=openCart;qs("#closeCart").onclick=closeAll;qs("#overlay").onclick=closeAll;qs("#modalClose").onclick=closeAll;qs("#modalAdd").onclick=()=>addToCart(activeProduct,activeSize);
+qs("#menuBtn").onclick=()=>qs("#mobileMenu").style.display=qs("#mobileMenu").style.display==="flex"?"none":"flex";
+qs("#searchBtn").onclick=()=>{qs("#searchPanel").classList.add("open");setTimeout(()=>qs("#searchInput").focus(),200)};qs("#closeSearch").onclick=()=>qs("#searchPanel").classList.remove("open");
+qs("#searchInput").oninput=e=>{const q=e.target.value.toLowerCase().trim();qs("#searchResults").innerHTML=q?PRODUCTS.filter(p=>(p.name+" "+p.type).toLowerCase().includes(q)).map(p=>`<div class="search-result"><span>${p.name}</span><span>${money(p.price)}</span></div>`).join(""):""};
+qs("#newsletterForm").onsubmit=e=>{e.preventDefault();localStorage.setItem("vanthen-newsletter",qs("#newsletterEmail").value);qs("#newsletterMessage").textContent="DU BIST AUF DER PRIVATE-ACCESS-LISTE.";e.target.reset()};
+qs("#contactForm").onsubmit=e=>{e.preventDefault();const subject=encodeURIComponent("VANTHEN Anfrage"),body=encodeURIComponent(`Name: ${qs("#contactName").value}\nE-Mail: ${qs("#contactEmail").value}\n\n${qs("#contactMessage").value}`);qs("#contactStatus").textContent="Dein E-Mail-Programm wird geöffnet.";location.href=`mailto:contact@vanthen.de?subject=${subject}&body=${body}`};
+qs("#checkoutBtn").onclick=()=>{if(!cart.length){alert("Dein Warenkorb ist leer.");return}const total=cart.reduce((a,b)=>a+b.price*b.qty,0),summary=cart.map(x=>`${x.qty}x ${x.name} / ${x.size}`).join("%0A");location.href=`mailto:orders@vanthen.de?subject=VANTHEN%20Bestellanfrage&body=${summary}%0A%0ASumme:%20${encodeURIComponent(money(total))}`};
+if(!localStorage.getItem("vanthen-cookie"))qs("#cookieBanner").style.display="flex";qs("#acceptCookies").onclick=()=>{localStorage.setItem("vanthen-cookie","1");qs("#cookieBanner").style.display="none"};
 renderProducts();renderCart();
