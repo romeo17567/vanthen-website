@@ -58,3 +58,33 @@ img{
     object-fit:contain;
   }
 }
+
+
+/* Native-size product image protection */
+.product-image{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.product-image img{
+  width:auto;
+  height:auto;
+  max-width:100%;
+  max-height:100%;
+  object-fit:contain;
+}
+.modal-art{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.modal-art img{
+  width:auto;
+  height:auto;
+  max-width:100%;
+  max-height:100%;
+  object-fit:contain;
+}
+.cart-item img{
+  object-fit:contain;
+}
