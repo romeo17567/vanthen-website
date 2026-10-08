@@ -27,3 +27,34 @@ footer{padding:70px 5vw 25px;border-top:1px solid #222}.footer-logo{font-family:
 .product-card:hover .sprite-product{transform:scale(1.025)}
 .modal-art .sprite-product{width:100%;height:100%;min-height:100%;display:block}
 .cart-item .sprite-product{width:74px;height:90px;display:block}
+
+
+/* High-resolution image rendering */
+img{
+  image-rendering:auto;
+  -webkit-image-rendering:auto;
+  max-width:100%;
+}
+.product-image img,
+.hero-visual img,
+.editorial-image img,
+.modal-art img,
+.cart-item img{
+  image-rendering:-webkit-optimize-contrast;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+  transform:translateZ(0);
+}
+.product-image img{
+  object-position:center;
+}
+.product-card:hover .product-image img{
+  transform:translateZ(0) scale(1.01);
+}
+@media(max-width:580px){
+  .product-image img{
+    width:100%;
+    height:100%;
+    object-fit:contain;
+  }
+}
